@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a14a8">
+<title>Intro-Quiz</title>
+<link rel="stylesheet" href="/quiz.css">
+</head>
+<body class="spieler">
+<header class="kopf">
+  <span class="seite">P777</span>
+  <span class="marke">Intro-Quiz</span>
+  <span id="runde" class="runde"></span>
+</header>
+<div class="mosaik" aria-hidden="true"></div>
+<main id="stage" class="stage" aria-live="polite"></main>
+<aside id="tafel" class="tafel" hidden>
+  <h2>Punkte</h2>
+  <ol id="liste" class="liste"></ol>
+</aside>
+<div id="ton" class="band" hidden></div>
+<div id="netz" class="netz" hidden>Verbindung unterbrochen. Verbinde neu …</div>
+<script type="module" src="/player.js"></script>
+</body>
+</html>

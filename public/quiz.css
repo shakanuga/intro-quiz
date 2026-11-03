@@ -1,0 +1,235 @@
+@font-face {
+  font-family: "Pixelify Sans";
+  src: url("/fonts/PixelifySans-Medium.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+:root {
+  --blau: #0a14a8;
+  --tief: #060c6e;
+  --schwarz: #000;
+  --weiss: #fff;
+  --gelb: #ffe600;
+  --cyan: #00e5ff;
+  --gruen: #00e05a;
+  --magenta: #ff2bd6;
+  --rot: #ff2a1f;
+  --rot-tief: #a30f08;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--blau);
+  color: var(--weiss);
+  font-family: "Pixelify Sans", ui-monospace, monospace;
+  font-size: 20px;
+  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+}
+h1, h2, p { margin: 0; }
+[hidden] { display: none !important; }
+button, input { font: inherit; }
+:focus-visible { outline: 3px solid var(--gelb); outline-offset: 2px; }
+
+/* Kopfzeile wie eine Videotext-Tafel */
+.kopf {
+  display: flex; gap: 16px; align-items: baseline;
+  background: var(--schwarz);
+  padding: 8px 16px;
+}
+.seite { color: var(--gruen); }
+.marke { color: var(--gelb); }
+.runde { margin-left: auto; color: var(--cyan); }
+.mosaik {
+  height: 12px;
+  background: repeating-linear-gradient(90deg,
+    var(--rot) 0 48px, var(--gelb) 48px 96px, var(--gruen) 96px 144px,
+    var(--cyan) 144px 192px, var(--magenta) 192px 240px);
+}
+
+/* Spieler */
+.spieler { }
+.stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+.tafelbild { display: grid; gap: 16px; justify-items: center; max-width: 34ch; }
+.tafelbild h1 { font-size: clamp(40px, 10vw, 76px); line-height: 1.02; color: var(--gelb); overflow-wrap: anywhere; }
+.vorzeile { color: var(--cyan); font-size: 24px; }
+.treffer { background: var(--rot); color: var(--weiss); padding: 32px 24px; max-width: 100%; }
+.treffer h1 { color: var(--weiss); }
+.treffer.fremd { background: var(--schwarz); }
+.treffer.fremd h1 { color: var(--magenta); }
+.gesperrt-bild h1 { color: var(--rot); }
+.aufloesung h1 { color: var(--weiss); }
+.ende h1 { color: var(--gruen); }
+
+.beitreten {
+  display: grid; gap: 8px;
+  width: min(100%, 360px);
+  text-align: left;
+  margin: auto;
+  padding: 24px 16px;
+}
+.beitreten h1 { color: var(--gelb); font-size: 44px; margin-bottom: 8px; }
+.beitreten label { color: var(--cyan); margin-top: 8px; }
+.beitreten .knopf { margin-top: 16px; }
+input {
+  width: 100%;
+  background: var(--schwarz);
+  color: var(--weiss);
+  border: 2px solid var(--cyan);
+  padding: 10px 12px;
+  border-radius: 0;
+  min-width: 0;
+}
+input[type="range"] { border: 0; padding: 0; background: none; accent-color: var(--gelb); }
+.code-feld { text-transform: uppercase; letter-spacing: .3em; font-size: 28px; }
+.fehler { color: var(--weiss); background: var(--rot-tief); padding: 8px 12px; margin-top: 8px; }
+
+.knopf {
+  background: var(--schwarz);
+  color: var(--weiss);
+  border: 2px solid var(--weiss);
+  padding: 12px 18px;
+  cursor: pointer;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 var(--tief);
+}
+.knopf:hover { background: var(--tief); }
+.knopf:active { transform: translate(4px, 4px); box-shadow: none; }
+.knopf.gelb { background: var(--gelb); color: var(--schwarz); border-color: var(--gelb); }
+.knopf.gruen { background: var(--gruen); color: var(--schwarz); border-color: var(--gruen); }
+.knopf.rot { background: var(--rot); color: var(--weiss); border-color: var(--rot); }
+.knopf.klein { padding: 6px 10px; box-shadow: none; font-size: 18px; }
+.regler { display: grid; gap: 4px; width: 100%; color: var(--cyan); }
+
+/* Der Buzzer ist das eine große Ding: ein Knopf aus Pixeln */
+.buzzer-feld { display: grid; justify-items: center; gap: 16px; width: 100%; }
+.buzzer {
+  position: relative;
+  width: min(78vw, 46dvh, 380px);
+  aspect-ratio: 1;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.sockel, .kappe {
+  position: absolute; left: 0; right: 0; height: 92%;
+  clip-path: polygon(30% 0, 70% 0, 70% 6%, 82% 6%, 82% 12%, 88% 12%, 88% 18%, 94% 18%, 94% 30%, 100% 30%, 100% 70%, 94% 70%, 94% 82%, 88% 82%, 88% 88%, 82% 88%, 82% 94%, 70% 94%, 70% 100%, 30% 100%, 30% 94%, 18% 94%, 18% 88%, 12% 88%, 12% 82%, 6% 82%, 6% 70%, 0 70%, 0 30%, 6% 30%, 6% 18%, 12% 18%, 12% 12%, 18% 12%, 18% 6%, 30% 6%);
+}
+.sockel { top: 8%; background: var(--rot-tief); }
+.kappe {
+  top: 0;
+  background: var(--rot);
+  color: var(--weiss);
+  display: grid; place-items: center;
+  font-size: clamp(36px, 11vw, 64px);
+  transition: top 40ms linear;
+}
+.buzzer:active .kappe, .buzzer.gedrueckt .kappe { top: 8%; }
+.laufband { display: flex; gap: 12px; align-items: flex-end; justify-content: center; min-height: 32px; }
+.zeit { color: var(--cyan); }
+.tipp { color: var(--cyan); font-size: 18px; }
+.eq { display: flex; gap: 4px; align-items: flex-end; height: 30px; }
+.eq i { width: 10px; height: 100%; background: var(--gruen); transform-origin: bottom; animation: eq 760ms steps(4) infinite alternate; }
+.eq i:nth-child(2) { background: var(--gelb); animation-delay: -210ms; }
+.eq i:nth-child(3) { background: var(--cyan); animation-delay: -480ms; }
+.eq i:nth-child(4) { background: var(--magenta); animation-delay: -90ms; }
+.eq i:nth-child(5) { background: var(--rot); animation-delay: -620ms; }
+.eq i:nth-child(6) { animation-delay: -340ms; }
+.eq i:nth-child(7) { background: var(--gelb); animation-delay: -550ms; }
+.eq.still i { animation: none; transform: scaleY(.15); }
+@keyframes eq { from { transform: scaleY(.15); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .eq i { animation: none; transform: scaleY(.6); }
+  .kappe { transition: none; }
+}
+
+/* Punktetafel */
+.tafel { background: var(--schwarz); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+.tafel h2, .spalte h2 { color: var(--gelb); font-size: 24px; font-weight: 500; margin-bottom: 8px; }
+.liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.zeile { display: flex; gap: 10px; align-items: center; }
+.zeile .platz { color: var(--cyan); width: 2.2ch; flex: none; }
+.zeile .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.zeile .punkte { color: var(--gelb); min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.zeile.ich .name { color: var(--gruen); }
+.zeile.weg { opacity: .55; }
+.zeile.gesperrt .name { text-decoration: line-through; text-decoration-color: var(--rot); }
+.hinweis { color: var(--cyan); font-size: 16px; }
+.band { position: fixed; inset: auto 0 0; padding: 12px 16px; background: var(--magenta); display: grid; z-index: 5; }
+.netz { position: fixed; inset: 0 0 auto; padding: 8px 16px; background: var(--rot-tief); text-align: center; z-index: 6; }
+
+@media (min-width: 820px) {
+  .spieler { display: grid; grid-template-columns: 1fr 300px; grid-template-rows: auto auto 1fr; }
+  .spieler .kopf, .spieler .mosaik { grid-column: 1 / -1; }
+  .spieler .tafel { min-height: 0; overflow: auto; }
+}
+
+/* Host */
+.host-app {
+  flex: 1;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+.spalte { background: var(--tief); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.spalte.regie { gap: 16px; }
+.status { display: grid; gap: 4px; min-height: 130px; align-content: start; }
+.status h1 { font-size: clamp(36px, 5vw, 60px); line-height: 1.05; color: var(--gelb); overflow-wrap: anywhere; }
+.wer { color: var(--magenta); font-size: 28px; }
+.geladen { color: var(--gruen); }
+.aktionen { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.aktionen .knopf { flex: 1 1 200px; font-size: 26px; padding: 16px 18px; }
+kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
+.einladung { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--schwarz); padding: 12px 16px; flex-wrap: wrap; }
+.code { font-size: 44px; line-height: 1; letter-spacing: .15em; color: var(--gruen); }
+.neben { display: flex; flex-wrap: wrap; gap: 8px; }
+.hinweis-text { color: var(--cyan); font-size: 18px; }
+.regeln { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 8px 10px; align-items: center; color: var(--cyan); margin-top: 8px; }
+.regeln input { padding: 4px 8px; }
+.option { display: grid; grid-template-columns: 1fr 72px; gap: 10px; align-items: center; color: var(--cyan); }
+.option input { padding: 4px 8px; }
+.option.haken { grid-template-columns: auto 1fr; }
+.option.haken input { width: 22px; height: 22px; accent-color: var(--gelb); }
+.antwortzeit { color: var(--gelb); font-size: 28px; min-height: 1.3em; }
+.mini { display: inline-flex; gap: 2px; flex: none; }
+.mini button {
+  width: 30px; height: 30px; padding: 0;
+  background: var(--schwarz); color: var(--weiss);
+  border: 1px solid var(--cyan); cursor: pointer; border-radius: 0;
+}
+.mini button:hover:not(:disabled) { background: var(--blau); }
+.mini button:disabled { opacity: .35; cursor: default; }
+.ablage {
+  display: block; padding: 18px 12px; text-align: center; cursor: pointer;
+  border: 2px dashed var(--cyan); color: var(--cyan);
+}
+.ablage.ueber, .ablage:hover { background: var(--blau); color: var(--weiss); }
+.versteckt { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.versteckt:focus-visible + .ablage { outline: 3px solid var(--gelb); }
+.meldungen { list-style: none; margin: 0; padding: 0; color: var(--gruen); font-size: 18px; overflow-wrap: anywhere; }
+.intros { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.intros li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.intros li.aktuell { background: var(--blau); outline: 2px solid var(--gelb); }
+.intros .nr { color: var(--cyan); min-width: 2.6ch; text-align: right; }
+.intros input { flex: 1 1 120px; padding: 3px 6px; border-width: 1px; border-color: var(--tief); background: var(--schwarz); }
+.intros .dauer { color: var(--cyan); font-size: 16px; min-width: 3ch; }
+@media (min-width: 1100px) {
+  .host-app { grid-template-columns: minmax(360px, 1.15fr) minmax(420px, 1.3fr) minmax(280px, .9fr); }
+  #ablauf { order: -1; }
+}
