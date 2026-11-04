@@ -272,11 +272,11 @@ function viewFor(ws) {
 // Die Sammlung kann groß werden und geht deshalb nur bei Änderungen an den Host.
 let lastLibrary = '';
 function broadcast() {
-  const library = JSON.stringify(game.libraryView());
+  const library = JSON.stringify({ t: 'library', library: game.libraryView(), quizIds: game.quizIds() });
   const libraryChanged = library !== lastLibrary;
   lastLibrary = library;
   for (const ws of clients) {
-    if (ws.isHost && libraryChanged) ws.send(`{"t":"library","library":${library}}`);
+    if (ws.isHost && libraryChanged) ws.send(library);
     if (ws.isHost || ws.pid) sendTo(ws, { t: 'state', state: viewFor(ws) });
   }
 }
@@ -315,6 +315,12 @@ const HOST_COMMANDS = {
   deleteQuiz: (m) => game.deleteQuiz(m.id),
   rematch: () => game.rematch(),
   setMode: (m) => game.setMode(m.mode),
+  createQuiz: (m, ws) => {
+    const quiz = game.createQuiz(m.name);
+    sendTo(ws, { t: 'quizCreated', id: quiz?.id ?? null });
+  },
+  moveInQuiz: (m) => game.moveInQuiz(m.id, m.item, m.dir),
+  deleteOrphans: () => game.deleteOrphans(),
   closeAnswers: () => game.closeAnswers(),
   skipTurn: () => game.skipTurn(),
   setTeam: (m) => game.setTeam(m.id, m.team),
@@ -323,7 +329,7 @@ const HOST_COMMANDS = {
   setAward: (m) => game.setAward(m.id, m.points),
   finishReview: () => game.finishReview(),
   saveQuestion: (m, ws) => {
-    const r = game.saveQuestion(m.question ?? {});
+    const r = game.saveQuestion(m.question ?? {}, m.quizId);
     sendTo(ws, { t: 'questionSaved', ok: r.ok, error: r.error ?? null });
   },
   stats: (_m, ws) => sendTo(ws, { t: 'stats', stats: game.stats() }),
@@ -349,7 +355,7 @@ wss.on('connection', (ws, req) => {
   if (wantsHost && !ws.isHost) { sendTo(ws, { t: 'needLogin' }); return ws.close(); }
   ws.on('pong', () => { ws.isAlive = true; });
   if (ws.isHost) {
-    sendTo(ws, { t: 'library', library: game.libraryView() });
+    sendTo(ws, { t: 'library', library: game.libraryView(), quizIds: game.quizIds() });
     sendTo(ws, { t: 'state', state: viewFor(ws) });
   }
 

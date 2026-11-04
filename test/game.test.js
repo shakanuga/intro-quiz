@@ -746,3 +746,46 @@ test('Zuordnen: Tippfehler im Import werden gemeldet', () => {
   assert.equal(normalize({ type: 'Zuordnen', question: 'Q', options: 'A=1|B' }).ok, false);
   assert.equal(normalize({ type: 'Zuordnen', question: 'Q', options: 'A=1' }).ok, false);
 });
+
+test('Ein neues Quiz bekommt Einträge in der angelegten Reihenfolge', () => {
+  const { g } = setup();
+  g.setMode('fragen');
+  const quiz = g.createQuiz('Eigenes');
+  assert.equal(g.createQuiz('eigenes'), null);
+  g.saveQuestion({ type: 'Buzzer', question: 'Erste?', answer: 'X' }, quiz.id);
+  g.saveQuestion({ type: 'Buzzer', question: 'Zweite?', answer: 'X' }, quiz.id);
+  assert.equal(g.playlist.length, 0);
+  const [a, b] = quiz.ids;
+  g.moveInQuiz(quiz.id, b, -1);
+  assert.deepEqual(quiz.ids, [b, a]);
+  g.loadQuiz(quiz.id);
+  assert.deepEqual(g.playlist, [b, a]);
+  g.moveInQuiz(quiz.id, b, 1);
+  assert.deepEqual(g.playlist, [a, b]);
+  g.saveQuestion({ type: 'Buzzer', question: 'Dritte?', answer: 'X' }, quiz.id);
+  assert.equal(g.playlist.length, 3);
+});
+
+test('Quiz löschen entfernt alle Fragen auf einmal und setzt das geladene Quiz zurück', () => {
+  const { g } = setup();
+  const quiz = g.addQuestions([
+    ask({ type: 'Buzzer', question: 'A?', answer: 'X' }), ask({ type: 'Buzzer', question: 'B?', answer: 'X' }),
+  ], 'Weg');
+  g.loadQuiz(quiz.id);
+  g.deleteQuiz(quiz.id);
+  assert.equal(g.playlist.length, 0);
+  assert.equal(g.quizName, null);
+  assert.equal(g.library.filter((r) => r.kind === 'question').length, 0);
+});
+
+test('Fragen ohne Quiz lassen sich gesammelt löschen, andere Quizze bleiben', () => {
+  const { g } = setup();
+  g.setMode('fragen');
+  g.saveQuestion({ type: 'Buzzer', question: 'Lose?', answer: 'X' });
+  g.addQuestions([ask({ type: 'Buzzer', question: 'Fest?', answer: 'X' })], 'Bleibt');
+  assert.equal(g.orphans().length, 1);
+  g.deleteOrphans();
+  assert.equal(g.orphans().length, 0);
+  assert.equal(g.library.filter((r) => r.kind === 'question').length, 1);
+  assert.equal(g.playlist.length, 0);
+});

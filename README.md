@@ -63,7 +63,7 @@ Beide Modi sind Formaten von PietSmiet nachempfunden. Dieses Projekt steht in ke
 
 ## Quizze und Statistik
 
-Im Bereich „Inhalte“ liegen die Intros oder Fragen des gewählten Modus. Du wählst aus, was ins aktuelle Quiz kommt, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
+Im Bereich „Inhalte“ findest du die Quizze des gewählten Modus. In den Fragenmodi öffnest du ein Quiz, um seine Einträge in ihrer Reihenfolge zu sehen und zu bearbeiten. Löschst du ein Quiz, verschwinden seine Einträge mit. Im Intro-Quiz liegen alle Intros in einer Sammlung. Du wählst aus, was ins aktuelle Quiz kommt, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
 
 Der Bereich „Statistik“ ist nur für den Host sichtbar. Er zeigt Siege, Punkte, richtige und falsche Antworten und die schnellste Antwort je Spieler, dazu jede Serie und jedes vergangene Spiel mit allen Runden. Spieler werden über ihren Namen wiedererkannt, sie sollten also immer denselben verwenden.
 

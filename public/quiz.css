@@ -246,6 +246,8 @@ kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
 .quizliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .quizliste li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: var(--schwarz); }
 .quizliste li.aktiv { outline: 2px solid var(--gelb); }
+.quizliste li.offen { background: var(--blau); }
+.quizliste-rest { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .quizliste .name { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
 /* Fragen */
 .frage { font-size: clamp(24px, 4.6vw, 38px); line-height: 1.2; color: var(--weiss); overflow-wrap: anywhere; }

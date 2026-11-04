@@ -12,6 +12,8 @@ let tab = 'spiel';
 let search = '';
 let stats = null;
 let library = [];
+let quizIds = {};
+let openQuiz = null;
 let imports = [];
 let editing = null;
 let editError = '';
@@ -50,7 +52,8 @@ function boot(gesture) {
     onStatus(up) { $('netz').hidden = up; },
     onMessage(m) {
       if (m.t === 'needLogin') { link.stop(); cols = null; state = null; $('reiter').hidden = true; loginView('Deine Anmeldung ist abgelaufen.'); return; }
-      if (m.t === 'library') { library = m.library; render(); return; }
+      if (m.t === 'library') { library = m.library; quizIds = m.quizIds; render(); return; }
+      if (m.t === 'quizCreated') { if (m.id) openQuiz = m.id; render(); return; }
       if (m.t === 'questionSaved') {
         editError = m.error ?? '';
         if (m.ok) editing = null;
@@ -198,7 +201,7 @@ function modePicker(s) {
       class: `knopf klein${key === s.mode ? ' aktiv' : ''}`, 'data-mode': key,
       'aria-pressed': key === s.mode ? 'true' : 'false',
       disabled: !lobby && key !== s.mode,
-      onclick: () => cmd('setMode', { mode: key }),
+      onclick: () => { openQuiz = null; editing = null; cmd('setMode', { mode: key }); },
     }, label)));
 }
 
@@ -355,7 +358,85 @@ function ablauf(s) {
 }
 
 // ---------- Intros und Quizze ----------
+function questionQuizzes(s) {
+  const name = h('input', { id: 'quizname', maxlength: 60, required: true, placeholder: 'Zum Beispiel Filmabend' });
+  const canLoad = s.phase === 'lobby';
+  const orphans = library.filter((r) => r.mode === s.mode && r.kind === 'question'
+    && !Object.values(quizIds).some((ids) => ids.includes(r.id)));
+  return [
+    modePicker(s),
+    h('h2', {}, `Quizze: ${MODE_NAMES[s.mode]} (${s.quizzes.length})`),
+    s.quizzes.length ? h('ul', { class: 'quizliste' }, s.quizzes.map((q) => h('li', { class: `${q.name === s.quizName ? 'aktiv' : ''}${q.id === openQuiz ? ' offen' : ''}` },
+      h('span', { class: 'name' }, q.name, h('span', { class: 'hinweis' }, ` ${countEntries(s, q.count)}`),
+        q.name === s.quizName ? h('span', { class: 'hinweis' }, ', geladen') : null),
+      h('button', { class: 'knopf klein', onclick: () => { openQuiz = q.id; editing = null; search = ''; render(); } }, 'Öffnen'),
+      h('button', { class: 'knopf klein', disabled: !canLoad || !q.count, onclick: () => cmd('loadQuiz', { id: q.id }) }, 'Laden'),
+      h('button', {
+        class: 'knopf klein',
+        onclick: () => {
+          if (!window.confirm(`Quiz „${q.name}“ mit allen Inhalten löschen?`)) return;
+          if (openQuiz === q.id) openQuiz = null;
+          cmd('deleteQuiz', { id: q.id });
+        },
+      }, 'Löschen')))) : h('p', { class: 'hinweis-text' }, 'Noch kein Quiz. Importiere eine CSV-Datei oder lege ein neues an.'),
+    orphans.length ? h('div', { class: 'quizliste-rest' },
+      h('span', { class: 'hinweis-text' }, `${countEntries(s, orphans.length)} ohne Quiz`),
+      h('button', {
+        class: 'knopf klein',
+        onclick: () => { if (window.confirm(`${countEntries(s, orphans.length)} ohne Quiz endgültig löschen?`)) cmd('deleteOrphans'); },
+      }, 'Alle löschen')) : null,
+    canLoad ? null : h('p', { class: 'hinweis-text' }, 'Modus und Quiz wählst du vor dem Spielstart. Beende dafür das laufende Spiel unter „Spiel“.'),
+    h('form', {
+      class: 'zeilenform',
+      onsubmit: (e) => { e.preventDefault(); cmd('createQuiz', { name: name.value }); name.value = ''; name.blur(); },
+    },
+    h('label', { for: 'quizname' }, 'Neues Quiz'), name,
+    h('button', { class: 'knopf klein', type: 'submit' }, 'Quiz anlegen')),
+    importBox(),
+  ];
+}
+
+function quizDetail(s) {
+  const quiz = s.quizzes.find((q) => q.id === openQuiz);
+  if (!quiz) return [h('h2', {}, 'Inhalt'), h('p', { class: 'hinweis-text' }, 'Öffne links ein Quiz, um seine Inhalte zu sehen.')];
+  const entries = (quizIds[quiz.id] ?? []).map((rid) => byId(rid)).filter(Boolean);
+  return [
+    h('h2', {}, `${quiz.name} (${countEntries(s, entries.length)})`),
+    editing ? questionForm() : h('button', {
+      class: 'knopf klein',
+      onclick: () => { editing = { type: MODE_TYPES[s.mode][0], question: '', optionText: '', answer: '', note: '', points: '' }; editError = ''; render(); },
+    }, 'Eintrag hinzufügen'),
+    h('ol', { class: 'intros sammlung' }, entries.map((r, i) => h('li', {},
+      h('span', { class: 'nr' }, `${i + 1}.`),
+      h('input', {
+        value: r.title, 'aria-label': `Text von Eintrag ${i + 1}`, maxlength: 500,
+        onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
+      }),
+      r.played ? h('span', { class: 'gespielt', title: `Schon ${r.played}-mal gespielt` }, `${r.played}×`) : null,
+      s.mode === 'fragen' ? h('span', { class: 'dauer' }, TYPE_NAMES[r.type]) : null,
+      h('span', { class: 'mini' },
+        h('button', { 'aria-label': `Eintrag ${i + 1} nach oben`, disabled: i === 0, onclick: () => cmd('moveInQuiz', { id: quiz.id, item: r.id, dir: -1 }) }, '↑'),
+        h('button', { 'aria-label': `Eintrag ${i + 1} nach unten`, disabled: i === entries.length - 1, onclick: () => cmd('moveInQuiz', { id: quiz.id, item: r.id, dir: 1 }) }, '↓'),
+        h('button', {
+          'aria-label': `${r.title} bearbeiten`, title: 'Bearbeiten',
+          onclick: () => {
+            const lines = (r.options ?? []).map((o, n) => (r.values?.[n] ? `${o}=${r.values[n]}` : o))
+              .concat((r.decoys ?? []).map((d) => `=${d}`));
+            editing = { ...r, optionText: lines.join('\n'), points: r.points ?? '' };
+            editError = '';
+            render();
+          },
+        }, '✎'),
+        h('button', {
+          'aria-label': `${r.title} löschen`, title: 'Löschen',
+          disabled: r.id === s.currentId,
+          onclick: () => { if (window.confirm(`${r.title} endgültig löschen?`)) cmd('remove', { id: r.id }); },
+        }, '×'))))),
+  ];
+}
+
 function quizze(s) {
+  if (s.mode !== 'intro') return questionQuizzes(s);
   const name = h('input', { id: 'quizname', maxlength: 60, required: true, value: s.quizName ?? '', placeholder: 'Zum Beispiel Filmabend' });
   const canLoad = s.phase === 'lobby';
   return [
@@ -368,7 +449,6 @@ function quizze(s) {
     },
     h('label', { for: 'quizname' }, 'Name'), name,
     h('button', { class: 'knopf klein', type: 'submit', disabled: !s.playlist.length }, 'Quiz speichern')),
-    s.mode === 'intro' ? null : importBox(),
     s.quizzes.length ? h('ul', { class: 'quizliste' }, s.quizzes.map((q) => h('li', { class: q.name === s.quizName ? 'aktiv' : '' },
       h('span', { class: 'name' }, q.name, h('span', { class: 'hinweis' }, ` ${countEntries(s, q.count)}`)),
       h('button', { class: 'knopf klein', disabled: !canLoad, onclick: () => cmd('loadQuiz', { id: q.id }) }, 'Laden'),
@@ -434,7 +514,7 @@ function questionForm() {
     class: 'frageform',
     onsubmit: (e) => {
       e.preventDefault();
-      cmd('saveQuestion', { question: { ...editing, type: TYPE_NAMES[editing.type], options: editing.optionText.split('\n') } });
+      cmd('saveQuestion', { quizId: openQuiz, question: { ...editing, type: TYPE_NAMES[editing.type], options: editing.optionText.split('\n') } });
     },
   },
   h('h2', {}, q.id ? 'Eintrag bearbeiten' : 'Neuer Eintrag'),
@@ -488,16 +568,6 @@ function sammlungRows(s, listNode, noteNode) {
       r.played ? h('span', { class: 'gespielt', title: `Schon ${r.played}-mal gespielt` }, `${r.played}× gespielt`) : null,
       h('span', { class: 'dauer' }, r.kind === 'question' ? TYPE_NAMES[r.type] : r.duration ? clock(r.duration) : ''),
       h('span', { class: 'mini' },
-        r.kind === 'question' ? h('button', {
-          'aria-label': `${r.title} bearbeiten`, title: 'Bearbeiten',
-          onclick: () => {
-            const lines = (r.options ?? []).map((o, i) => (r.values?.[i] ? `${o}=${r.values[i]}` : o))
-              .concat((r.decoys ?? []).map((d) => `=${d}`));
-            editing = { ...r, optionText: lines.join('\n'), points: r.points ?? '' };
-            editError = '';
-            render();
-          },
-        }, '✎') : null,
         h('button', {
           'aria-label': `${r.title} löschen`, title: 'Löschen',
           disabled: r.id === s.currentId,
@@ -507,6 +577,7 @@ function sammlungRows(s, listNode, noteNode) {
 }
 
 function sammlung(s) {
+  if (s.mode !== 'intro') return quizDetail(s);
   const zone = h('label', {
     class: 'ablage', for: 'dateien',
     ondragover: (e) => { e.preventDefault(); zone.classList.add('ueber'); },
@@ -518,18 +589,12 @@ function sammlung(s) {
   const refresh = () => sammlungRows(s, list, note);
   refresh();
   const count = library.filter((r) => r.mode === s.mode).length;
-  const intro = s.mode === 'intro';
   return [
-    h('h2', {}, `Sammlung: ${MODE_NAMES[s.mode]} (${count})`),
-    intro ? h('p', { class: 'hinweis-text' }, 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“. Neue Intros landen auch im aktuellen Quiz.') : null,
-    intro ? introPicker : null,
-    intro ? zone : null,
-    intro && uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
-    intro ? null : editing ? questionForm() : h('button', {
-      class: 'knopf klein',
-      onclick: () => { editing = { type: MODE_TYPES[s.mode][0], question: '', optionText: '', answer: '', note: '', points: '' }; editError = ''; render(); },
-    }, 'Eintrag hinzufügen'),
-    count ? h('input', { id: 'suche', type: 'search', placeholder: 'Suchen', 'aria-label': 'Sammlung durchsuchen', value: search, oninput: (e) => { search = e.target.value; refresh(); } }) : null,
+    h('h2', {}, `Alle Intros (${count})`),
+    h('p', { class: 'hinweis-text' }, 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“. Neue Intros landen auch im aktuellen Quiz.'),
+    introPicker, zone,
+    uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
+    count ? h('input', { id: 'suche', type: 'search', placeholder: 'Suchen', 'aria-label': 'Intros durchsuchen', value: search, oninput: (e) => { search = e.target.value; refresh(); } }) : null,
     note, list,
   ];
 }
