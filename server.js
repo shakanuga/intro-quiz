@@ -122,14 +122,34 @@ function readText(req, limit) {
     req.on('error', reject);
   });
 }
+// Jede neue Version bekommt eigene Adressen für CSS und Skripte. So kann kein Browser
+// und kein Proxy ein altes Skript zusammen mit dem neuen Server ausliefern.
+const BUILD = (() => {
+  const hash = crypto.createHash('sha256');
+  for (const name of fs.readdirSync(PUBLIC_DIR).sort()) {
+    const full = path.join(PUBLIC_DIR, name);
+    if (fs.statSync(full).isFile()) hash.update(fs.readFileSync(full));
+  }
+  return hash.digest('hex').slice(0, 12);
+})();
+function withBuild(file, data) {
+  const ext = path.extname(file);
+  if (ext === '.html') {
+    return data.toString('utf8').replace(/(href|src)="\/([a-z-]+\.(?:css|js))"/g, `$1="/$2?v=\${BUILD}"`);
+  }
+  if (ext === '.js') {
+    return data.toString('utf8').replace(/from '\.\/([a-z-]+\.js)'/g, `from './$1?v=\${BUILD}'`);
+  }
+  return data;
+}
 function serveStatic(req, res, file) {
   const full = path.join(PUBLIC_DIR, file);
   if (!full.startsWith(PUBLIC_DIR + path.sep)) return send(res, 404, { error: 'Nicht gefunden' });
   fs.readFile(full, (err, data) => {
     if (err) return send(res, 404, { error: 'Nicht gefunden' });
-    const cache = file.startsWith('fonts/') ? 'public, max-age=604800' : 'no-cache';
+    const cache = file.startsWith('fonts/') ? 'public, max-age=604800' : 'no-store';
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': cache });
-    res.end(data);
+    res.end(withBuild(file, data));
   });
 }
 function looksLikeAudio(b) {
