@@ -24,14 +24,15 @@ Ein Quiz kann Intros und alle Fragetypen beliebig mischen.
 | Schätzen | Alle geben eine Zahl ein. Die nächste gewinnt, bei Gleichstand alle Nächsten. | automatisch |
 | Sortieren | Alle bringen gemischte Einträge in die richtige Reihenfolge. | automatisch, nur exakt richtig zählt |
 | Ordnungshüter | Teams oder Einzelne ordnen abwechselnd Einträge in eine wachsende Liste ein. | automatisch |
+| Zuordnen | Teams oder Einzelne bilden Paare, bis ein Paar falsch ist. | automatisch |
 
 Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
 
 | Spalte | Inhalt |
 | --- | --- |
-| `typ` | Buzzer, Eintippen, Auswahl, Schätzen, Sortieren oder Ordnungshüter |
+| `typ` | Buzzer, Eintippen, Auswahl, Schätzen, Sortieren, Ordnungshüter oder Zuordnen |
 | `frage` | die Frage |
-| `optionen` | bei Auswahl, Sortieren und Ordnungshüter, getrennt mit `\|`. Bei Sortieren und Ordnungshüter in der richtigen Reihenfolge, bei Ordnungshüter als `Eintrag=Wert`. |
+| `optionen` | getrennt mit `\|`. Bei Sortieren und Ordnungshüter in der richtigen Reihenfolge. Ordnungshüter: `Eintrag=Wert`. Zuordnen: `Begriff=Gegenstück`, Köder als `=Köder`. |
 | `loesung` | die Lösung. Bei Auswahl der Text oder Buchstabe, bei Schätzen eine Zahl, bei Sortieren leer. |
 | `erklaerung` | erscheint freiwillig bei der Auflösung |
 | `punkte` | leer bedeutet der Standardwert |
@@ -45,7 +46,11 @@ Eine Liste enthält meist neun Einträge, die richtige Reihenfolge steht in der 
 - Im Teamspiel gewinnt, wer zuletzt übrig ist oder am Ende weniger Fehler hat, und nur der Sieger punktet. Bei Gleichstand gibt es keine Punkte.
 - Einzeln bekommt Platz 1 die vollen Punkte, jeder weitere Platz einen weniger. Mit 3 Punkten ergibt das 3, 2, 1.
 
-Das Format ist den „Ordnungshütern“ von PietSmiet nachempfunden. Dieses Projekt steht in keiner Verbindung zu PietSmiet.
+### Zuordnen
+
+Links stehen Begriffe, rechts ihre gemischten Gegenstücke, dazu auf Wunsch Köder ohne Partner. Wer dran ist, bildet so lange Paare, bis eins falsch ist. Das falsche Paar wird nicht aufgelöst, und die nächste Partei ist dran. Jedes richtige Paar gibt sofort einen Punkt, ein Wert in `punkte` ersetzt diesen Standard. Im Teamspiel bekommt jedes Mitglied die Punkte.
+
+Beide Modi sind Formaten von PietSmiet nachempfunden. Dieses Projekt steht in keiner Verbindung zu PietSmiet.
 
 ## Quizze und Statistik
 

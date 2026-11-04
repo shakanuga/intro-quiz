@@ -18,7 +18,7 @@ let editing = null;
 let editError = '';
 const LIST_LIMIT = 300;
 const TABS = { spiel: 'Spiel', intros: 'Intros und Fragen', statistik: 'Statistik' };
-const TYPE_NAMES = { buzzer: 'Buzzer', choice: 'Auswahl', text: 'Eintippen', estimate: 'Schätzen', order: 'Sortieren', rank: 'Ordnungshüter' };
+const TYPE_NAMES = { buzzer: 'Buzzer', choice: 'Auswahl', text: 'Eintippen', estimate: 'Schätzen', order: 'Sortieren', rank: 'Ordnungshüter', match: 'Zuordnen' };
 
 const cmd = (a, extra = {}) => link.send({ t: 'cmd', a, ...extra });
 
@@ -132,7 +132,7 @@ function actions(s) {
         ? button('Spiel starten', 'start', 'gelb')
         : h('p', { class: 'hinweis-text' }, 'Füge unter „Intros und Fragen“ Inhalte hinzu oder lade ein gespeichertes Quiz.')];
     case 'ready':
-      if (s.round.type === 'rank') {
+      if (['rank', 'match'].includes(s.round.type)) {
         return s.players.filter((p) => p.online).length > 1
           ? [button('Liste starten', 'play', 'gelb', ' '), button('Ohne Spiel auflösen', 'reveal')]
           : [h('p', { class: 'hinweis-text' }, 'Dafür braucht es mindestens zwei Spieler.'), button('Ohne Spiel auflösen', 'reveal')];
@@ -146,6 +146,7 @@ function actions(s) {
         : [button('Antworten schließen', 'closeAnswers', 'gelb', ' '), button('Ohne Wertung auflösen', 'reveal')];
     case 'review': return [button('Wertung abschließen', 'finishReview', 'gelb', ' ')];
     case 'sorting': return [button('Zug überspringen', 'skipTurn'), button('Ohne Punkte beenden', 'reveal')];
+    case 'matching': return [button('Zug überspringen', 'skipTurn'), button('Runde beenden', 'reveal')];
     case 'playing': return [button('Pause', 'pause', '', ' '), button('Auflösen', 'reveal')];
     case 'paused': return [button('Weiter abspielen', 'resume', 'gelb', ' '), button('Auflösen', 'reveal')];
     case 'judging': return [button('Richtig', 'correct', 'gruen', 'r'), button('Falsch', 'wrong', 'rot', 'f')];
@@ -160,7 +161,7 @@ function actions(s) {
 const STATUS = {
   lobby: 'Warten auf Spieler', ready: 'Bereit', playing: 'Intro läuft', paused: 'Pause',
   judging: 'Antwort prüfen', reveal: 'Aufgelöst', finished: 'Spiel beendet',
-  asking: 'Frage läuft', review: 'Antworten werten', sorting: 'Einordnen läuft',
+  asking: 'Frage läuft', review: 'Antworten werten', sorting: 'Einordnen läuft', matching: 'Zuordnen läuft',
 };
 
 function rankPanel(s) {
@@ -176,9 +177,23 @@ function rankPanel(s) {
       r.values[i] ? `${o}: ${r.values[i]}` : o))));
 }
 
+function matchPanel(s) {
+  const r = s.round;
+  const found = new Set((s.match?.done ?? []).map((p) => p.left));
+  return h('div', { class: 'frage-host' },
+    h('p', { class: 'hinweis-text' }, `Zuordnen, ${r.points} ${r.points === 1 ? 'Punkt' : 'Punkte'} je Paar. Bei einem Fehler ist die nächste Partei dran.`),
+    s.match ? h('ul', { class: 'parteien' }, s.match.units.map((u) => h('li', { class: u.name === s.match.turn && s.phase === 'matching' ? 'dran' : '' },
+      `${u.name}: ${u.points}, ${u.errors} Fehler`))) : null,
+    s.match?.last ? h('p', { class: s.match.last.right ? 'letzter gut' : 'letzter schlecht' },
+      `${s.match.last.unit}: ${s.match.last.pair} ${s.match.last.right ? 'gehören zusammen.' : 'passen nicht.'}`) : null,
+    h('ul', { class: 'optionen paarliste' }, r.solution.map((o, i) => h('li', { class: found.has(o) ? 'richtig' : '' }, `${o}: ${r.values[i]}`))),
+    r.decoys.length ? h('p', { class: 'hinweis-text' }, `Köder: ${r.decoys.join(', ')}`) : null);
+}
+
 function questionPanel(s) {
   const r = s.round;
   if (r.type === 'rank') return rankPanel(s);
+  if (r.type === 'match') return matchPanel(s);
   const solution = r.type === 'choice' || r.type === 'order' ? r.solution : [];
   return h('div', { class: 'frage-host' },
     h('p', { class: 'hinweis-text' }, `${TYPE_NAMES[r.type]}, ${r.points} ${r.points === 1 ? 'Punkt' : 'Punkte'}`),
@@ -397,8 +412,8 @@ function importBox() {
 function questionForm() {
   const q = editing;
   const set = (key) => (e) => { editing[key] = e.target.value; };
-  const lines = ['choice', 'order', 'rank'].includes(q.type);
-  const fixed = ['order', 'rank'].includes(q.type);
+  const lines = ['choice', 'order', 'rank', 'match'].includes(q.type);
+  const fixed = ['order', 'rank', 'match'].includes(q.type);
   return h('form', {
     class: 'frageform',
     onsubmit: (e) => {
@@ -416,6 +431,7 @@ function questionForm() {
   lines ? h('label', { for: 'f-optionen' }, {
     order: 'Einträge in der richtigen Reihenfolge, je Zeile einer',
     rank: 'Einträge in der richtigen Reihenfolge, je Zeile Eintrag=Wert',
+    match: 'Je Zeile Begriff=Gegenstück, Köder als =Köder',
     choice: 'Optionen, je Zeile eine',
   }[q.type]) : null,
   lines ? h('textarea', { id: 'f-optionen', rows: 4, oninput: set('optionText') }, q.optionText) : null,
@@ -459,7 +475,8 @@ function sammlungRows(s, listNode, noteNode) {
         r.kind === 'question' ? h('button', {
           'aria-label': `${r.title} bearbeiten`, title: 'Bearbeiten',
           onclick: () => {
-            const lines = (r.options ?? []).map((o, i) => (r.values?.[i] ? `${o}=${r.values[i]}` : o));
+            const lines = (r.options ?? []).map((o, i) => (r.values?.[i] ? `${o}=${r.values[i]}` : o))
+              .concat((r.decoys ?? []).map((d) => `=${d}`));
             editing = { ...r, optionText: lines.join('\n'), points: r.points ?? '' };
             editError = '';
             render();

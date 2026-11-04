@@ -297,6 +297,14 @@ kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
 .platz-slot .knopf:disabled { opacity: .3; }
 .optionen.zahlen { list-style-type: decimal; }
 .stapel { display: grid; gap: 12px; min-width: 0; }
+.paare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+.spalte-links, .spalte-rechts { display: grid; gap: 4px; min-width: 0; }
+.paare .knopf { padding: 6px 8px; box-shadow: none; overflow-wrap: anywhere; text-align: left; }
+.paare .knopf.gewaehlt { background: var(--gelb); color: var(--schwarz); border-color: var(--gelb); }
+.gefunden { display: grid; gap: 6px; width: 100%; }
+.gefunden .eintrag .name { flex: 1 1 45%; }
+.gefunden .wert { flex: 1 1 45%; white-space: normal; text-align: right; overflow-wrap: anywhere; }
+.paarliste { list-style: none; padding-left: 0; }
 .host .teamname { display: none; }
 .teamwahl { width: auto; padding: 0 2px; border-width: 1px; font-size: 16px; height: 30px; }
 .importbox { display: grid; gap: 8px; margin-top: 8px; }

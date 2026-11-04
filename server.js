@@ -373,6 +373,7 @@ wss.on('connection', (ws, req) => {
     if (ws.pid && m?.t === 'loaded') return game.setLoaded(ws.pid, m.id);
     if (ws.pid && m?.t === 'answer') return game.submitAnswer(ws.pid, m.value);
     if (ws.pid && m?.t === 'place') return game.placeItem(ws.pid, m.item, m.slot);
+    if (ws.pid && m?.t === 'pair') return game.pairItems(ws.pid, m.left, m.right);
     if (ws.isHost && m?.t === 'cmd' && Object.hasOwn(HOST_COMMANDS, m.a)) HOST_COMMANDS[m.a](m, ws);
   });
   ws.on('close', () => {

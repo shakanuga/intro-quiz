@@ -144,6 +144,13 @@ function placedList(r, onSlot) {
   ]));
 }
 
+function pairList(m) {
+  return h('div', { class: 'gefunden' },
+    h('ul', { class: 'ordnung' }, m.done.map((p) => h('li', { class: 'eintrag' },
+      h('span', { class: 'name' }, p.left), h('span', { class: 'wert' }, p.right)))),
+    m.decoys.length ? h('p', { class: 'hinweis-text' }, `Köder: ${m.decoys.join(', ')}`) : null);
+}
+
 function unitLine(r) {
   return h('ul', { class: 'parteien' }, r.units.map((u) => h('li', { class: `${u.out ? 'raus' : ''}${u.name === r.turn ? ' dran' : ''}` },
     `${u.name}: ${u.out ? 'raus' : `${u.errors} Fehler`}`)));
@@ -195,6 +202,29 @@ const views = {
       }, x.text))),
       placedList(r, mine ? place : null));
   },
+  matching: () => {
+    const m = state.match;
+    const mine = m.turnMembers.includes(state.me);
+    let left = null;
+    const pickLeft = (id, button) => {
+      left = id;
+      for (const b of document.querySelectorAll('.spalte-links .knopf')) b.classList.toggle('gewaehlt', b === button);
+      for (const b of document.querySelectorAll('.spalte-rechts .knopf')) b.disabled = false;
+    };
+    return h('div', { class: 'einordnen' }, question(),
+      h('ul', { class: 'parteien' }, m.units.map((u) => h('li', { class: u.name === m.turn ? 'dran' : '' }, `${u.name}: ${u.points}`))),
+      h('p', { class: mine ? 'zug meiner' : 'zug' }, mine ? 'Du bist dran: Wähle links einen Begriff und rechts sein Gegenstück.' : `${m.turn} ist dran.`),
+      m.last ? h('p', { class: m.last.right ? 'letzter gut' : 'letzter schlecht' },
+        `${m.last.unit}: ${m.last.pair} ${m.last.right ? 'gehören zusammen.' : 'passen nicht.'}`) : null,
+      h('div', { class: 'paare' },
+        h('div', { class: 'spalte-links' }, m.lefts.map((x) => h('button', {
+          class: 'knopf', disabled: !mine, onclick: (e) => pickLeft(x.id, e.currentTarget),
+        }, x.text))),
+        h('div', { class: 'spalte-rechts' }, m.rights.map((x) => h('button', {
+          class: 'knopf', disabled: true, onclick: () => { if (left !== null) link.send({ t: 'pair', left, right: x.id }); },
+        }, x.text)))),
+      pairList(m));
+  },
   pruefen: () => h('div', { class: 'tafelbild' }, question(),
     h('p', {}, state.myAnswer ? `Deine Antwort: ${state.myAnswer}` : 'Du hast nicht geantwortet.'),
     h('p', { class: 'vorzeile' }, 'Die Antworten werden geprüft.')),
@@ -224,7 +254,7 @@ const views = {
     return h('div', { class: 'tafelbild aufloesung' },
       state.round.question ? question() : null,
       h('p', { class: 'vorzeile' }, lead),
-      state.rank ? placedList(state.rank, null) : h('h1', {}, state.round.title ?? ''),
+      state.rank ? placedList(state.rank, null) : state.match ? pairList(state.match) : h('h1', {}, state.round.title ?? ''),
       state.round.note ? h('p', {}, state.round.note) : null,
       results.length ? h('ul', { class: 'ergebnisse' }, results.map((r) => h('li', { class: r.points > 0 ? 'treffer-zeile' : '' },
         h('span', { class: 'name' }, r.name), h('span', {}, r.answer), h('span', { class: 'punkte' }, r.points > 0 ? `+${r.points}` : String(r.points))))) : null,
@@ -256,6 +286,7 @@ function pickMode() {
   if (s.phase === 'asking' && s.round.type === 'buzzer') return s.locked ? `fragegesperrt:${s.round.n}` : `fragebuzzer:${s.round.n}`;
   if (s.phase === 'asking') return `eingabe:${s.round.n}:${s.round.type}`;
   if (s.phase === 'review') return `pruefen:${s.round.n}`;
+  if (s.phase === 'matching') return `matching:${s.round.n}:${s.match.done.length}:${s.match.turn}:${s.match.last?.pair ?? ''}`;
   if (s.phase === 'sorting') return `sorting:${s.round.n}:${s.rank.placed.length}:${s.rank.turn}`;
   if (s.phase === 'playing') return s.locked ? 'locked' : 'buzzer';
   if (s.phase === 'paused') return 'pause';

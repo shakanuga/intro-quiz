@@ -605,3 +605,90 @@ test('Ordnungshüter braucht mindestens zwei Parteien', () => {
   assert.equal(solo.g.play(), false);
   assert.equal(solo.g.phase, 'ready');
 });
+
+function matchRound(names = ['Anna', 'Ben', 'Cem'], options = 'Lukas=Emma|Bibi=Kartoffelbrei|Ash=Pikachu|=Köder') {
+  const q = ask({ type: 'Zuordnen', question: 'Wer gehört zu wem?', options });
+  const ctx = setup(names);
+  const quiz = ctx.g.addQuestions([q], 'Paare');
+  ctx.g.loadQuiz(quiz.id);
+  ctx.g.start();
+  ctx.g.play();
+  return { ...ctx, q };
+}
+function pair(g, leftText, rightText) {
+  const m = g.view().match;
+  const left = m.lefts.find((x) => x.text === leftText);
+  const right = m.rights.find((x) => x.text === rightText);
+  return g.pairItems(m.turnMembers[0], left.id, right.id);
+}
+
+test('Zuordnen: Köder werden erkannt, Lösung bleibt geheim', () => {
+  const { g, q } = matchRound();
+  assert.deepEqual(q.decoys, ['Köder']);
+  const m = g.view().match;
+  assert.equal(g.phase, 'matching');
+  assert.equal(m.lefts.length, 3);
+  assert.equal(m.rights.length, 4);
+  assert.equal(JSON.stringify(g.view()).includes('Bibi: Kartoffelbrei'), false);
+});
+
+test('Zuordnen: richtig bleibt dran und punktet sofort, falsch gibt den Zug ab ohne Auflösung', () => {
+  const { g } = matchRound();
+  const first = g.view().match.turn;
+  pair(g, 'Lukas', 'Emma');
+  assert.equal(g.view().match.turn, first);
+  assert.equal(g.view().match.units.find((u) => u.name === first).points, 1);
+  assert.equal(g.view().match.done.length, 1);
+  pair(g, 'Bibi', 'Köder');
+  const v = g.view().match;
+  assert.notEqual(v.turn, first);
+  assert.equal(v.last.right, false);
+  assert.equal(v.lefts.length, 2);
+  assert.equal(v.rights.length, 3);
+});
+
+test('Zuordnen: wer nicht dran ist, darf nicht zuordnen', () => {
+  const { g } = matchRound();
+  const m = g.view().match;
+  const other = m.units.find((u) => u.name !== m.turn).members[0];
+  assert.equal(g.pairItems(other, m.lefts[0].id, m.rights[0].id), false);
+});
+
+test('Zuordnen: alle Paare beenden die Runde und zeigen Lösung und Köder', () => {
+  const { g } = matchRound();
+  pair(g, 'Lukas', 'Emma');
+  pair(g, 'Bibi', 'Kartoffelbrei');
+  pair(g, 'Ash', 'Pikachu');
+  assert.equal(g.phase, 'reveal');
+  const v = g.view().match;
+  assert.equal(v.done.length, 3);
+  assert.deepEqual(v.decoys, ['Köder']);
+  assert.equal(g.results[0].points, 3);
+  assert.equal(g.rounds[0].correct.length, 1);
+});
+
+test('Zuordnen: im Teamspiel punkten alle Mitglieder, und die Runde lässt sich beenden', () => {
+  const { g } = matchRound(['Anna', 'Ben', 'Cem', 'Dora']);
+  g.reveal();
+  assert.equal(g.phase, 'reveal');
+  const q = ask({ type: 'Zuordnen', question: 'Q', options: 'A=1|B=2' });
+  const ctx = setup(['Anna', 'Ben', 'Cem', 'Dora']);
+  ctx.ids.forEach((pid, i) => ctx.g.setTeam(pid, (i % 2) + 1));
+  ctx.g.loadQuiz(ctx.g.addQuestions([q], 'T').id);
+  ctx.g.start(); ctx.g.play();
+  pair(ctx.g, 'A', '1');
+  assert.equal([...ctx.g.players.values()].filter((p) => p.score === 1).length, 2);
+});
+
+test('Zuordnen: gleiche Gegenstücke sind austauschbar und der Stand überlebt einen Neustart', () => {
+  const { g } = matchRound(['Anna', 'Ben'], 'Messi=Fußball|Ronaldo=Fußball|Federer=Tennis');
+  pair(g, 'Ronaldo', 'Fußball');
+  const copy = new Game({ saved: JSON.parse(JSON.stringify(g)) });
+  assert.equal(copy.view().match.done.length, 1);
+  assert.equal(copy.view().match.rights.filter((r) => r.text === 'Fußball').length, 1);
+});
+
+test('Zuordnen: Tippfehler im Import werden gemeldet', () => {
+  assert.equal(normalize({ type: 'Zuordnen', question: 'Q', options: 'A=1|B' }).ok, false);
+  assert.equal(normalize({ type: 'Zuordnen', question: 'Q', options: 'A=1' }).ok, false);
+});
