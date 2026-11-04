@@ -290,6 +290,18 @@ const HOST_COMMANDS = {
   rename: (m) => game.rename(m.id, m.title),
   move: (m) => game.move(m.id, m.dir),
   shuffle: () => game.shuffle(),
+  include: (m) => game.include(m.id),
+  exclude: (m) => game.exclude(m.id),
+  clearQuiz: () => game.clearQuiz(),
+  saveQuiz: (m) => game.saveQuiz(m.name),
+  loadQuiz: (m) => game.loadQuiz(m.id),
+  deleteQuiz: (m) => game.deleteQuiz(m.id),
+  rematch: () => game.rematch(),
+  stats: (_m, ws) => sendTo(ws, { t: 'stats', stats: game.stats() }),
+  deleteGame: (m, ws) => {
+    game.deleteGame(m.id);
+    sendTo(ws, { t: 'stats', stats: game.stats() });
+  },
   duration: (m) => game.setDuration(m.id, m.ms),
   remove: (m) => {
     const gone = game.remove(m.id);
@@ -328,7 +340,7 @@ wss.on('connection', (ws, req) => {
     }
     if (ws.pid && m?.t === 'buzz') return game.buzz(ws.pid);
     if (ws.pid && m?.t === 'loaded') return game.setLoaded(ws.pid, m.id);
-    if (ws.isHost && m?.t === 'cmd' && Object.hasOwn(HOST_COMMANDS, m.a)) HOST_COMMANDS[m.a](m);
+    if (ws.isHost && m?.t === 'cmd' && Object.hasOwn(HOST_COMMANDS, m.a)) HOST_COMMANDS[m.a](m, ws);
   });
   ws.on('close', () => {
     clients.delete(ws);

@@ -188,3 +188,127 @@ test('alte Spielstände bekommen die neuen Einstellungen', () => {
   const g = new Game({ saved: { settings: { right: 5, wrong: -2 } } });
   assert.deepEqual(g.settings, { right: 5, wrong: -2, multiBuzz: false, answerSeconds: 0 });
 });
+
+function fullGame(g, ids, tick) {
+  g.start(); g.play(); tick(1000); tick(4000);
+  g.buzz(ids[0]); g.wrong(); tick(2000);
+  g.buzz(ids[1]); g.correct(); g.next();
+  g.reveal(); g.next();
+}
+
+test('ein beendetes Spiel landet einmal in der Statistik', () => {
+  const { g, ids, tick } = setup();
+  fullGame(g, ids, tick);
+  assert.equal(g.phase, 'finished');
+  assert.equal(g.history.length, 1);
+  g.finish();
+  assert.equal(g.history.length, 1);
+  const [game] = g.history;
+  assert.equal(game.rounds.length, 2);
+  assert.equal(game.rounds[0].winner, 'Ben');
+  assert.deepEqual(game.rounds[0].wrong, ['Anna']);
+  assert.equal(game.rounds[1].winner, null);
+  assert.equal(game.players[0].name, 'Ben');
+});
+
+test('Statistik zählt Siege, Treffer und schnellste Antwort über mehrere Spiele', () => {
+  const { g, ids, tick } = setup();
+  fullGame(g, ids, tick);
+  g.rematch();
+  assert.equal(g.phase, 'lobby');
+  assert.equal(g.players.size, 3);
+  assert.equal(g.players.get(ids[1]).score, 0);
+  fullGame(g, ids, tick);
+  const s = g.stats();
+  assert.equal(g.history.length, 2);
+  const ben = s.players.find((p) => p.name === 'Ben');
+  assert.equal(ben.games, 2);
+  assert.equal(ben.wins, 2);
+  assert.equal(ben.points, 6);
+  assert.equal(ben.right, 2);
+  assert.ok(ben.fastest > 0);
+  assert.equal(s.players[0].name, 'Ben');
+  assert.equal(s.players.find((p) => p.name === 'Anna').wrong, 2);
+  const simpsons = s.series.find((x) => x.title === 'Die Simpsons');
+  assert.equal(simpsons.plays, 2);
+  assert.equal(simpsons.guessed, 2);
+  assert.equal(s.series.find((x) => x.title === 'Friends').guessed, 0);
+  assert.equal(g.hostView().library.find((r) => r.id === 'a').played, 2);
+});
+
+test('ein Spiel ohne gespielte Runde wird nicht gespeichert', () => {
+  const { g } = setup();
+  g.start();
+  g.newGame();
+  assert.equal(g.history.length, 0);
+});
+
+test('Spiel löschen entfernt es aus der Statistik', () => {
+  const { g, ids, tick } = setup();
+  fullGame(g, ids, tick);
+  g.deleteGame(g.history[0].id);
+  assert.equal(g.stats().players.length, 0);
+});
+
+test('Quiz speichern, ändern und wieder laden', () => {
+  const { g } = setup();
+  g.addIntro({ id: 'c', ext: '.mp3', title: 'Lost', size: 1 });
+  g.exclude('b');
+  g.saveQuiz('Sci-Fi');
+  assert.deepEqual(g.playlist, ['a', 'c']);
+  g.clearQuiz();
+  assert.equal(g.playlist.length, 0);
+  g.include('b');
+  const q = g.quizzes[0];
+  assert.ok(g.loadQuiz(q.id));
+  assert.deepEqual(g.playlist, ['a', 'c']);
+  assert.equal(g.quizName, 'Sci-Fi');
+  g.move('c', -1);
+  g.saveQuiz('sci-fi');
+  assert.equal(g.quizzes.length, 1);
+  assert.deepEqual(g.quizzes[0].ids, ['c', 'a']);
+  assert.equal(g.view().round.total, 2);
+});
+
+test('während des Spiels lässt sich kein Quiz laden', () => {
+  const { g } = setup();
+  g.saveQuiz('Alles');
+  g.start();
+  assert.equal(g.loadQuiz(g.quizzes[0].id), false);
+});
+
+test('das Spiel folgt der Quiz-Reihenfolge und nicht der Sammlung', () => {
+  const { g, ids, tick } = setup();
+  g.exclude('a');
+  assert.equal(g.view().round.total, 1);
+  g.start();
+  assert.equal(g.current().title, 'Friends');
+  g.play(); tick(1000);
+  g.buzz(ids[0]); g.correct(); g.next();
+  assert.equal(g.phase, 'finished');
+});
+
+test('gelöschte Intros verschwinden aus gespeicherten Quizzen', () => {
+  const { g } = setup();
+  g.saveQuiz('Alles');
+  assert.ok(g.remove('a'));
+  assert.deepEqual(g.quizzes[0].ids, ['b']);
+  assert.deepEqual(g.playlist, ['b']);
+});
+
+test('alte Spielstände ohne Quiz behalten alle Intros', () => {
+  const library = [{ id: 'a', ext: '.mp3', title: 'A', size: 1 }, { id: 'b', ext: '.mp3', title: 'B', size: 1 }];
+  const g = new Game({ saved: { library } });
+  assert.deepEqual(g.playlist, ['a', 'b']);
+  assert.deepEqual(g.history, []);
+});
+
+test('Statistik und Quizze überleben einen Neustart', () => {
+  const { g, ids, tick } = setup();
+  g.saveQuiz('Alles');
+  fullGame(g, ids, tick);
+  const copy = new Game({ saved: JSON.parse(JSON.stringify(g)) });
+  assert.equal(copy.history.length, 1);
+  assert.equal(copy.quizzes[0].name, 'Alles');
+  assert.equal(copy.stats().players.length, 3);
+});

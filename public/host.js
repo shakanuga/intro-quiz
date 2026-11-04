@@ -8,6 +8,10 @@ let engine = null;
 let lastFx = null;
 let uploads = [];
 let cols = null;
+let tab = 'spiel';
+let search = '';
+let stats = null;
+const TABS = { spiel: 'Spiel', intros: 'Intros und Quizze', statistik: 'Statistik' };
 
 const cmd = (a, extra = {}) => link.send({ t: 'cmd', a, ...extra });
 
@@ -37,7 +41,8 @@ function boot(gesture) {
     role: 'host',
     onStatus(up) { $('netz').hidden = up; },
     onMessage(m) {
-      if (m.t === 'needLogin') { link.stop(); cols = null; state = null; loginView('Deine Anmeldung ist abgelaufen.'); return; }
+      if (m.t === 'needLogin') { link.stop(); cols = null; state = null; $('reiter').hidden = true; loginView('Deine Anmeldung ist abgelaufen.'); return; }
+      if (m.t === 'stats') { stats = m.stats; if (tab === 'statistik') render(); return; }
       if (m.t !== 'state') return;
       if (lastFx !== null && m.state.fx.n > lastFx) engine.effect(m.state.fx.kind);
       lastFx = m.state.fx.n;
@@ -67,8 +72,34 @@ function buildShell() {
     ablauf: h('section', { class: 'spalte', id: 'ablauf' }),
     regie: h('section', { class: 'spalte regie', id: 'regie' }),
     punkte: h('section', { class: 'spalte', id: 'punkte' }),
+    quizze: h('section', { class: 'spalte', id: 'quizze' }),
+    sammlung: h('section', { class: 'spalte', id: 'sammlung' }),
+    bilanz: h('section', { class: 'spalte', id: 'bilanz' }),
+    spiele: h('section', { class: 'spalte', id: 'spiele' }),
   };
-  app.replaceChildren(cols.regie, cols.punkte, cols.ablauf);
+  $('reiter').hidden = false;
+  $('reiter').replaceChildren(...Object.entries(TABS).map(([key, label]) => h('button', {
+    'data-tab': key,
+    onclick: () => openTab(key),
+  }, label)));
+  openTab('spiel');
+}
+
+function openTab(key) {
+  tab = key;
+  for (const b of $('reiter').children) {
+    if (b.dataset.tab === key) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
+  document.body.dataset.reiter = key;
+  const shown = {
+    spiel: [cols.regie, cols.punkte, cols.ablauf],
+    intros: [cols.quizze, cols.sammlung],
+    statistik: [cols.bilanz, cols.spiele],
+  }[key];
+  app.replaceChildren(...shown);
+  if (key === 'statistik') cmd('stats');
+  render();
 }
 
 // ---------- Regie ----------
@@ -80,9 +111,9 @@ function actions(s) {
   const lastRound = s.round.n >= s.round.total;
   switch (s.phase) {
     case 'lobby':
-      return [s.library.length
+      return [s.playlist.length
         ? button('Spiel starten', 'start', 'gelb')
-        : h('p', { class: 'hinweis-text' }, 'Lade zuerst Intros hoch.')];
+        : h('p', { class: 'hinweis-text' }, 'Lade unter „Intros und Quizze“ Intros hoch oder lade ein gespeichertes Quiz.')];
     case 'ready': return [button('Intro abspielen', 'play', 'gelb', ' '), button('Ohne Buzzer auflösen', 'reveal')];
     case 'playing': return [button('Pause', 'pause', '', ' '), button('Auflösen', 'reveal')];
     case 'paused': return [button('Weiter abspielen', 'resume', 'gelb', ' '), button('Auflösen', 'reveal')];
@@ -122,9 +153,13 @@ function regie(s) {
   nodes.push(h('div', { class: 'neben' },
     s.phase !== 'lobby' ? h('button', { class: 'knopf klein', onclick: () => cmd('restartRound') }, 'Runde neu starten') : null,
     !['lobby', 'finished'].includes(s.phase) ? h('button', { class: 'knopf klein', onclick: () => cmd('finish') }, 'Spiel beenden') : null,
+    s.phase !== 'lobby' ? h('button', {
+      class: 'knopf klein',
+      onclick: () => { if (window.confirm('Noch ein Spiel mit denselben Spielern? Die Punkte starten wieder bei null.')) cmd('rematch'); },
+    }, 'Nochmal mit denselben Spielern') : null,
     h('button', {
       class: 'knopf klein',
-      onclick: () => { if (window.confirm('Neues Spiel starten? Alle Spieler und Punkte werden gelöscht, die Intros bleiben.')) cmd('newGame'); },
+      onclick: () => { if (window.confirm('Neues Spiel mit neuem Code starten? Alle Spieler fliegen raus. Gespielte Runden landen in der Statistik.')) cmd('newGame'); },
     }, 'Neues Spiel')));
   return nodes;
 }
@@ -173,28 +208,20 @@ async function uploadFiles(files) {
   }
 }
 
+const countIntros = (n) => `${n} ${n === 1 ? 'Intro' : 'Intros'}`;
+const byId = (s, rid) => s.library.find((r) => r.id === rid);
+
 function ablauf(s) {
-  const total = s.library.reduce((sum, r) => sum + (r.duration ?? 0), 0);
-  const unknown = s.library.some((r) => !r.duration);
-  const picker = h('input', {
-    type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,audio/*',
-    onchange: (e) => { uploadFiles([...e.target.files]); e.target.value = ''; },
-  });
-  const zone = h('label', {
-    class: 'ablage', for: 'dateien',
-    ondragover: (e) => { e.preventDefault(); zone.classList.add('ueber'); },
-    ondragleave: () => zone.classList.remove('ueber'),
-    ondrop: (e) => { e.preventDefault(); zone.classList.remove('ueber'); uploadFiles([...e.dataTransfer.files]); },
-  }, 'Intros hierher ziehen oder auswählen');
+  const entries = s.playlist.map((rid) => byId(s, rid)).filter(Boolean);
+  const total = entries.reduce((sum, r) => sum + (r.duration ?? 0), 0);
+  const unknown = entries.some((r) => !r.duration);
   return [
-    h('h2', {}, `Intros (${s.library.length})`),
-    h('p', { class: 'hinweis-text' }, s.library.length
-      ? `Gesamtlänge ${unknown ? 'mindestens ' : ''}${clock(total)}. Der Dateiname wird zur Lösung.`
-      : 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“.'),
-    picker, zone,
-    uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
-    s.library.length > 1 ? h('button', { class: 'knopf klein', onclick: () => cmd('shuffle') }, 'Reihenfolge mischen') : null,
-    h('ol', { class: 'intros' }, s.library.map((r, i) => h('li', { class: r.id === s.currentId ? 'aktuell' : '' },
+    h('h2', {}, `${s.quizName ?? 'Aktuelles Quiz'} (${entries.length})`),
+    entries.length
+      ? h('p', { class: 'hinweis-text' }, `Gesamtlänge ${unknown ? 'mindestens ' : ''}${clock(total)}.`)
+      : h('p', { class: 'hinweis-text' }, 'Noch keine Intros im Quiz.'),
+    entries.length > 1 ? h('button', { class: 'knopf klein', onclick: () => cmd('shuffle') }, 'Reihenfolge mischen') : null,
+    h('ol', { class: 'intros' }, entries.map((r, i) => h('li', { class: r.id === s.currentId ? 'aktuell' : '' },
       h('span', { class: 'nr' }, `${i + 1}.`),
       h('input', {
         value: r.title, 'aria-label': `Lösung für Intro ${i + 1}`, maxlength: 80,
@@ -205,12 +232,137 @@ function ablauf(s) {
         s.phase !== 'lobby' && r.id !== s.currentId
           ? h('button', { 'aria-label': `Zu ${r.title} springen`, title: 'Zu dieser Runde springen', onclick: () => cmd('goTo', { id: r.id }) }, '▶') : null,
         h('button', { 'aria-label': `${r.title} nach oben`, disabled: i === 0, onclick: () => cmd('move', { id: r.id, dir: -1 }) }, '↑'),
-        h('button', { 'aria-label': `${r.title} nach unten`, disabled: i === s.library.length - 1, onclick: () => cmd('move', { id: r.id, dir: 1 }) }, '↓'),
+        h('button', { 'aria-label': `${r.title} nach unten`, disabled: i === entries.length - 1, onclick: () => cmd('move', { id: r.id, dir: 1 }) }, '↓'),
         h('button', {
-          'aria-label': `${r.title} löschen`,
+          'aria-label': `${r.title} aus dem Quiz nehmen`, title: 'Aus dem Quiz nehmen',
           disabled: r.id === s.currentId,
-          onclick: () => { if (window.confirm(`${r.title} löschen?`)) cmd('remove', { id: r.id }); },
+          onclick: () => cmd('exclude', { id: r.id }),
         }, '×'))))),
+  ];
+}
+
+// ---------- Intros und Quizze ----------
+function quizze(s) {
+  const name = h('input', { id: 'quizname', maxlength: 60, required: true, value: s.quizName ?? '', placeholder: 'Zum Beispiel Sci-Fi-Abend' });
+  const canLoad = s.phase === 'lobby';
+  return [
+    h('h2', {}, 'Gespeicherte Quizze'),
+    h('p', { class: 'hinweis-text' }, `Im aktuellen Quiz: ${countIntros(s.playlist.length)}. Speichere es unter einem Namen, um es später wieder zu laden. Ein gleicher Name überschreibt das alte Quiz.`),
+    h('form', {
+      class: 'zeilenform',
+      onsubmit: (e) => { e.preventDefault(); cmd('saveQuiz', { name: name.value }); name.blur(); },
+    },
+    h('label', { for: 'quizname' }, 'Name'), name,
+    h('button', { class: 'knopf klein', type: 'submit', disabled: !s.playlist.length }, 'Quiz speichern')),
+    s.quizzes.length ? h('ul', { class: 'quizliste' }, s.quizzes.map((q) => h('li', { class: q.name === s.quizName ? 'aktiv' : '' },
+      h('span', { class: 'name' }, q.name, h('span', { class: 'hinweis' }, ` ${countIntros(q.count)}`)),
+      h('button', { class: 'knopf klein', disabled: !canLoad, onclick: () => cmd('loadQuiz', { id: q.id }) }, 'Laden'),
+      h('button', {
+        class: 'knopf klein',
+        onclick: () => { if (window.confirm(`Quiz „${q.name}“ löschen? Die Intros bleiben erhalten.`)) cmd('deleteQuiz', { id: q.id }); },
+      }, 'Löschen')))) : h('p', { class: 'hinweis-text' }, 'Noch kein Quiz gespeichert.'),
+    canLoad ? null : h('p', { class: 'hinweis-text' }, 'Ein Quiz lädst du vor dem Spielstart. Beende dafür das laufende Spiel unter „Spiel“.'),
+    canLoad && s.playlist.length ? h('button', {
+      class: 'knopf klein',
+      onclick: () => { if (window.confirm('Alle Intros aus dem aktuellen Quiz nehmen? Sie bleiben in der Sammlung.')) cmd('clearQuiz'); },
+    }, 'Aktuelles Quiz leeren') : null,
+  ];
+}
+
+function sammlung(s) {
+  const picker = h('input', {
+    type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,audio/*',
+    onchange: (e) => { uploadFiles([...e.target.files]); e.target.value = ''; },
+  });
+  const zone = h('label', {
+    class: 'ablage', for: 'dateien',
+    ondragover: (e) => { e.preventDefault(); zone.classList.add('ueber'); },
+    ondragleave: () => zone.classList.remove('ueber'),
+    ondrop: (e) => { e.preventDefault(); zone.classList.remove('ueber'); uploadFiles([...e.dataTransfer.files]); },
+  }, 'Intros hierher ziehen oder auswählen');
+  const matches = (r) => r.title.toLowerCase().includes(search.toLowerCase());
+  const sorted = [...s.library].sort((a, b) => a.title.localeCompare(b.title, 'de'));
+  const inQuiz = new Set(s.playlist);
+  const filter = (e) => {
+    search = e.target.value;
+    for (const li of cols.sammlung.querySelectorAll('.sammlung li')) {
+      li.hidden = !li.dataset.titel.includes(search.toLowerCase());
+    }
+  };
+  return [
+    h('h2', {}, `Alle Intros (${s.library.length})`),
+    h('p', { class: 'hinweis-text' }, 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“. Neue Intros landen auch im aktuellen Quiz.'),
+    picker, zone,
+    uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
+    s.library.length ? h('input', { id: 'suche', type: 'search', placeholder: 'Serie suchen', 'aria-label': 'Serie suchen', value: search, oninput: filter }) : null,
+    h('ol', { class: 'intros sammlung' }, sorted.map((r) => {
+      const dabei = inQuiz.has(r.id);
+      return h('li', { 'data-titel': r.title.toLowerCase(), hidden: !matches(r), class: dabei ? 'dabei' : '' },
+        h('span', { class: 'mini' }, h('button', {
+          'aria-label': dabei ? `${r.title} aus dem Quiz nehmen` : `${r.title} ins Quiz nehmen`,
+          title: dabei ? 'Aus dem Quiz nehmen' : 'Ins Quiz nehmen',
+          'aria-pressed': dabei ? 'true' : 'false',
+          disabled: r.id === s.currentId,
+          onclick: () => cmd(dabei ? 'exclude' : 'include', { id: r.id }),
+        }, dabei ? '✓' : '+')),
+        h('input', {
+          value: r.title, 'aria-label': `Lösung für ${r.title}`, maxlength: 80,
+          onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
+        }),
+        r.played ? h('span', { class: 'gespielt', title: `Schon ${r.played}-mal gespielt` }, `${r.played}× gespielt`) : null,
+        h('span', { class: 'dauer' }, r.duration ? clock(r.duration) : ''),
+        h('span', { class: 'mini' }, h('button', {
+          'aria-label': `${r.title} löschen`, title: 'Datei löschen',
+          disabled: r.id === s.currentId,
+          onclick: () => { if (window.confirm(`${r.title} endgültig löschen? Das Intro verschwindet auch aus allen Quizzen.`)) cmd('remove', { id: r.id }); },
+        }, '×')));
+    })),
+  ];
+}
+
+// ---------- Statistik ----------
+const seconds = (ms) => (ms === null || ms === undefined ? '' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`);
+const dateText = (ms) => new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const table = (heads, rows) => h('div', { class: 'tabelle' }, h('table', {},
+  h('thead', {}, h('tr', {}, heads.map((t) => h('th', { scope: 'col' }, t)))),
+  h('tbody', {}, rows.map((row) => h('tr', {}, row.map((cell) => h('td', {}, String(cell))))))));
+
+function bilanz(st) {
+  if (!st) return [h('h2', {}, 'Statistik'), h('p', { class: 'hinweis-text' }, 'Wird geladen …')];
+  if (!st.games.length) {
+    return [h('h2', {}, 'Statistik'), h('p', { class: 'hinweis-text' }, 'Noch keine Spiele. Sobald ein Spiel endet, steht es hier.')];
+  }
+  return [
+    h('h2', {}, 'Spieler'),
+    table(['Name', 'Spiele', 'Siege', 'Punkte', 'Richtig', 'Falsch', 'Schnellste'], st.players.map((p) => [
+      p.name, p.games, p.wins, p.points, p.right, p.wrong, seconds(p.fastest),
+    ])),
+    h('h2', {}, 'Serien'),
+    table(['Serie', 'Gespielt', 'Erraten', 'Im Schnitt nach'], st.series.map((t) => [
+      t.title, t.plays, t.guessed, seconds(t.avgMs),
+    ])),
+  ];
+}
+
+function spiele(st) {
+  if (!st?.games.length) return [];
+  return [
+    h('h2', {}, `Vergangene Spiele (${st.games.length})`),
+    h('div', { class: 'spieleliste' }, st.games.map((g) => {
+      const best = Math.max(...g.players.map((p) => p.score));
+      const winners = g.players.filter((p) => p.score === best && best > 0).map((p) => p.name).join(', ');
+      return h('details', {},
+        h('summary', {}, `${dateText(g.at)}: ${g.quiz ?? 'Ohne Namen'}`,
+          h('span', { class: 'hinweis' }, winners ? ` Sieg: ${winners}` : ' ohne Sieger')),
+        table(['Name', 'Punkte'], g.players.map((p) => [p.name, p.score])),
+        table(['Serie', 'Erraten von', 'Nach', 'Falsch'], g.rounds.map((r) => [
+          r.title, r.winner ?? 'niemand', seconds(r.ms), r.wrong.join(', '),
+        ])),
+        h('button', {
+          class: 'knopf klein',
+          onclick: () => { if (window.confirm('Dieses Spiel aus der Statistik löschen?')) cmd('deleteGame', { id: g.id }); },
+        }, 'Spiel löschen'));
+    })),
   ];
 }
 
@@ -224,13 +376,23 @@ function replaceUnlessEditing(node, kids) {
 function render() {
   if (!state || !cols) return;
   $('runde').textContent = state.round.n ? `Runde ${state.round.n}/${state.round.total}` : '';
-  cols.regie.replaceChildren(...regie(state).filter(Boolean));
-  replaceUnlessEditing(cols.punkte, punkte(state));
-  replaceUnlessEditing(cols.ablauf, ablauf(state));
+  if (tab === 'spiel') {
+    cols.regie.replaceChildren(...regie(state).filter(Boolean));
+    replaceUnlessEditing(cols.punkte, punkte(state));
+    replaceUnlessEditing(cols.ablauf, ablauf(state));
+  }
+  if (tab === 'intros') {
+    replaceUnlessEditing(cols.quizze, quizze(state));
+    replaceUnlessEditing(cols.sammlung, sammlung(state));
+  }
+  if (tab === 'statistik') {
+    cols.bilanz.replaceChildren(...bilanz(stats));
+    cols.spiele.replaceChildren(...spiele(stats));
+  }
 }
 
 addEventListener('keydown', (e) => {
-  if (!state || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!state || tab !== 'spiel' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '')) return;
   const key = e.key.toLowerCase();
   const btn = document.querySelector(`#regie [data-key="${CSS.escape(key)}"]`);

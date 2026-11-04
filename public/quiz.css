@@ -90,6 +90,7 @@ input {
   border-radius: 0;
   min-width: 0;
 }
+input:disabled { opacity: .5; }
 input[type="range"] { border: 0; padding: 0; background: none; accent-color: var(--gelb); }
 .code-feld { text-transform: uppercase; letter-spacing: .3em; font-size: 28px; }
 .fehler { color: var(--weiss); background: var(--rot-tief); padding: 8px 12px; margin-top: 8px; }
@@ -229,7 +230,36 @@ kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
 .intros .nr { color: var(--cyan); min-width: 2.6ch; text-align: right; }
 .intros input { flex: 1 1 120px; padding: 3px 6px; border-width: 1px; border-color: var(--tief); background: var(--schwarz); }
 .intros .dauer { color: var(--cyan); font-size: 16px; min-width: 3ch; }
+
+/* Bereiche im Host */
+.reiter { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 16px 0; }
+.reiter button {
+  background: var(--tief); color: var(--cyan);
+  border: 0; border-radius: 0; padding: 8px 14px; cursor: pointer;
+}
+.reiter button[aria-current] { background: var(--gelb); color: var(--schwarz); }
+.host-app { padding-top: 12px; }
+.intros li[hidden] { display: none; }
+.sammlung li.dabei input { color: var(--gruen); }
+.gespielt { color: var(--magenta); font-size: 16px; white-space: nowrap; }
+.zeilenform { display: grid; gap: 6px; color: var(--cyan); justify-items: start; }
+.quizliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.quizliste li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: var(--schwarz); }
+.quizliste li.aktiv { outline: 2px solid var(--gelb); }
+.quizliste .name { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+.knopf:disabled { opacity: .4; cursor: default; }
+.tabelle { overflow-x: auto; }
+.tabelle table { border-collapse: collapse; width: 100%; font-size: 18px; }
+.tabelle th { color: var(--gelb); font-weight: 500; text-align: left; padding: 4px 12px 4px 0; white-space: nowrap; }
+.tabelle td { padding: 3px 12px 3px 0; border-top: 1px solid var(--blau); }
+.spieleliste { display: grid; gap: 8px; }
+.spieleliste details { background: var(--schwarz); padding: 8px 12px; display: grid; gap: 12px; }
+.spieleliste details[open] > * + * { margin-top: 12px; }
+.spieleliste summary { cursor: pointer; }
+@media (min-width: 900px) {
+  body[data-reiter="intros"] .host-app, body[data-reiter="statistik"] .host-app { grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.4fr); }
+}
 @media (min-width: 1100px) {
-  .host-app { grid-template-columns: minmax(360px, 1.15fr) minmax(420px, 1.3fr) minmax(280px, .9fr); }
+  body[data-reiter="spiel"] .host-app { grid-template-columns: minmax(360px, 1.15fr) minmax(420px, 1.3fr) minmax(280px, .9fr); }
   #ablauf { order: -1; }
 }

@@ -12,6 +12,14 @@ Ein Ratequiz für Serien-Intros mit Buzzer im Browser, gemacht für Runden über
 
 Die Spieler buzzern per Knopf oder Leertaste. Der Host steuert auch per Tastatur: Leertaste für Abspielen und Pause, `R` für richtig, `F` für falsch und `N` für die nächste Runde.
 
+## Quizze und Statistik
+
+Im Bereich „Intros und Quizze“ liegen alle hochgeladenen Intros. Du wählst aus, welche ins aktuelle Quiz kommen, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
+
+Der Bereich „Statistik“ ist nur für den Host sichtbar. Er zeigt Siege, Punkte, richtige und falsche Antworten und die schnellste Antwort je Spieler, dazu jede Serie und jedes vergangene Spiel mit allen Runden. Spieler werden über ihren Namen wiedererkannt, sie sollten also immer denselben verwenden.
+
+Mit „Nochmal mit denselben Spielern“ bleiben alle im Spiel, die Punkte starten wieder bei null.
+
 ## Einstellungen im Host-Bereich
 
 | Einstellung | Standard | Bedeutung |
