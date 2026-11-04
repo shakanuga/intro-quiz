@@ -235,7 +235,7 @@ function regie(s) {
   nodes.push(h('div', { class: 'status' },
     h('p', { class: 'vorzeile' }, STATUS[s.phase]),
     s.round.question ? h('p', { class: 'frage' }, s.round.question)
-      : s.round.title ? h('h1', {}, s.round.title) : h('h1', {}, s.phase === 'finished' ? (s.players[0]?.name ?? 'Niemand') : 'Intro-Quiz'),
+      : s.round.title ? h('h1', {}, s.round.title) : h('h1', {}, s.phase === 'finished' ? (s.players[0]?.name ?? 'Niemand') : MODE_NAMES[s.mode]),
     s.round.question && s.phase !== 'finished' ? questionPanel(s) : null,
     s.phase === 'asking' && s.round.type !== 'buzzer' ? h('p', { class: 'geladen' }, `${online.filter((p) => p.answered).length} von ${online.length} Spielern haben geantwortet`) : null,
     s.phase === 'review' ? reviewPanel(s) : null,
