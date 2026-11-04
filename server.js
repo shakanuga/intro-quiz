@@ -250,11 +250,20 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/host/questions') {
       if (!isHost(req)) { req.resume(); return send(res, 401, { error: 'Bitte melde dich an.' }); }
-      const { questions, errors } = importCsv(await readText(req, 3 * 1024 * 1024));
-      if (!questions.length) return send(res, 422, { error: 'Keine Frage ließ sich importieren.', errors });
-      const quiz = game.addQuestions(questions, url.searchParams.get('name'));
-      if (!quiz) return send(res, 413, { error: 'Die Sammlung ist voll.' });
-      return send(res, 200, { quiz: quiz.name, imported: questions.length, errors });
+      const { questions, intros, errors } = importCsv(await readText(req, 3 * 1024 * 1024));
+      const name = url.searchParams.get('name');
+      let imported = 0;
+      if (intros.length) {
+        const r = game.addIntroQuiz(intros, name);
+        imported += r.quiz?.ids.length ?? 0;
+        errors.push(...r.missing.map((m) => ({ row: m.row, error: `Kein Intro gefunden: ${m.title}` })));
+      }
+      if (questions.length) {
+        if (!game.addQuestions(questions, name)) return send(res, 413, { error: 'Die Sammlung ist voll.' });
+        imported += questions.length;
+      }
+      if (!imported) return send(res, 422, { error: 'Nichts ließ sich importieren.', errors });
+      return send(res, 200, { imported, errors });
     }
     send(res, 404, { error: 'Nicht gefunden' });
   } catch (e) {

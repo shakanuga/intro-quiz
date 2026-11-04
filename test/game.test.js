@@ -789,3 +789,20 @@ test('Fragen ohne Quiz lassen sich gesammelt löschen, andere Quizze bleiben', (
   assert.equal(g.library.filter((r) => r.kind === 'question').length, 1);
   assert.equal(g.playlist.length, 0);
 });
+
+test('Intro-Quiz aus Titeln: Reihenfolge bleibt, fehlende Titel werden gemeldet', () => {
+  const { g } = setup();
+  const csv = 'typ;frage\nIntro;friends\nIntro;Lost\nIntro;Die Simpsons\nIntro;Friends\n';
+  const { intros, questions } = importCsv(csv);
+  assert.equal(questions.length, 0);
+  const { quiz, missing } = g.addIntroQuiz(intros, 'Mix');
+  assert.deepEqual(quiz.ids, ['b', 'a']);
+  assert.equal(quiz.mode, 'intro');
+  assert.deepEqual(missing.map((m) => m.title), ['Lost']);
+  g.loadQuiz(quiz.id);
+  assert.deepEqual(g.playlist, ['b', 'a']);
+  assert.equal(g.addIntroQuiz([{ row: 2, title: 'Die Simpsons' }], 'mix').quiz.id, quiz.id);
+  assert.equal(g.quizzes.length, 1);
+  g.deleteQuiz(quiz.id);
+  assert.equal(g.library.length, 2);
+});

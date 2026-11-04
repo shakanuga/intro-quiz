@@ -35,6 +35,8 @@ Den Modus wählst du im Host-Bereich vor dem Spielstart, auch für ein weiteres 
 | Ordnungshüter | Teams oder Einzelne ordnen abwechselnd Einträge in eine wachsende Liste ein. | automatisch |
 | Zuordnen | Teams oder Einzelne bilden Paare, bis ein Paar falsch ist. | automatisch |
 
+Intro-Quizze importierst du mit Zeilen wie `Intro;Friends`, also dem Typ `Intro` und dem Titel eines hochgeladenen Intros in der Spalte `frage`. Fehlende Titel meldet der Import.
+
 Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen, und jeder Inhalt landet im passenden Modus. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
 
 | Spalte | Inhalt |

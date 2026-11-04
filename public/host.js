@@ -456,6 +456,7 @@ function quizze(s) {
         class: 'knopf klein',
         onclick: () => { if (window.confirm(`Quiz „${q.name}“ löschen? Die Intros bleiben erhalten.`)) cmd('deleteQuiz', { id: q.id }); },
       }, 'Löschen')))) : h('p', { class: 'hinweis-text' }, 'Noch kein Quiz gespeichert.'),
+    importBox(),
     canLoad ? null : h('p', { class: 'hinweis-text' }, 'Modus und Quiz wählst du vor dem Spielstart. Beende dafür das laufende Spiel unter „Spiel“.'),
     canLoad && s.playlist.length ? h('button', {
       class: 'knopf klein',
@@ -488,7 +489,7 @@ async function importFiles(files) {
       const body = await r.json().catch(() => ({}));
       const rows = (body.errors ?? []).slice(0, 5).map((e) => `Zeile ${e.row}: ${e.error}`);
       const more = (body.errors?.length ?? 0) > 5 ? [`und ${body.errors.length - 5} weitere Fehler`] : [];
-      msgs = [r.ok ? `${file.name}: ${body.imported} Fragen importiert` : `${file.name}: ${body.error ?? 'Der Import ist fehlgeschlagen.'}`, ...rows, ...more];
+      msgs = [r.ok ? `${file.name}: ${body.imported} Einträge importiert` : `${file.name}: ${body.error ?? 'Der Import ist fehlgeschlagen.'}`, ...rows, ...more];
     } catch { msgs = [`${file.name}: Die Datei ließ sich nicht lesen oder senden.`]; }
     imports = [...msgs, ...imports].slice(0, 12);
     render();
@@ -497,7 +498,7 @@ async function importFiles(files) {
 
 function importBox() {
   return h('div', { class: 'importbox' },
-    h('h2', {}, 'Fragen importieren'),
+    h('h2', {}, 'Quiz importieren'),
     h('p', { class: 'hinweis-text' }, 'Jede CSV-Datei wird zu einem gespeicherten Quiz mit dem Dateinamen. Inhalte landen automatisch im passenden Spielmodus.'),
     csvPicker,
     h('label', { class: 'ablage', for: 'csv' }, 'CSV-Datei auswählen'),
