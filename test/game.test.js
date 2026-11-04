@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { Game } = require('../lib/game');
+const { importCsv, normalize, parseNumber } = require('../lib/questions');
 
 function setup(names = ['Anna', 'Ben', 'Cem']) {
   let t = 1000;
@@ -233,7 +234,7 @@ test('Statistik zählt Siege, Treffer und schnellste Antwort über mehrere Spiel
   assert.equal(simpsons.plays, 2);
   assert.equal(simpsons.guessed, 2);
   assert.equal(s.series.find((x) => x.title === 'Friends').guessed, 0);
-  assert.equal(g.hostView().library.find((r) => r.id === 'a').played, 2);
+  assert.equal(g.libraryView().find((r) => r.id === 'a').played, 2);
 });
 
 test('ein Spiel ohne gespielte Runde wird nicht gespeichert', () => {
@@ -311,4 +312,167 @@ test('Statistik und Quizze überleben einen Neustart', () => {
   assert.equal(copy.history.length, 1);
   assert.equal(copy.quizzes[0].name, 'Alles');
   assert.equal(copy.stats().players.length, 3);
+});
+
+const ask = (fields) => {
+  const r = normalize(fields);
+  assert.ok(r.ok, r.error);
+  return r.q;
+};
+function quizWith(questions, names = ['Anna', 'Ben', 'Cem']) {
+  const ctx = setup(names);
+  const quiz = ctx.g.addQuestions(questions, 'Test');
+  ctx.g.loadQuiz(quiz.id);
+  ctx.g.start();
+  ctx.g.play();
+  return ctx;
+}
+
+test('Buzzer-Frage: Frage wird gezeigt, Lösung bleibt geheim, falsch öffnet die Buzzer wieder', () => {
+  const { g, ids } = quizWith([ask({ type: 'Buzzer', question: 'Wer?', answer: 'Sauron', points: '5' })]);
+  assert.equal(g.phase, 'asking');
+  assert.equal(g.view().round.question, 'Wer?');
+  assert.ok(!JSON.stringify(g.view()).includes('Sauron'));
+  assert.ok(g.buzz(ids[0]));
+  g.wrong();
+  assert.equal(g.phase, 'asking');
+  assert.equal(g.buzz(ids[0]), false);
+  g.buzz(ids[1]);
+  g.correct();
+  assert.equal(g.players.get(ids[1]).score, 5);
+  assert.equal(g.view().round.title, 'Sauron');
+});
+
+test('Auswahl: wird automatisch gewertet und die Lösung bleibt vorher geheim', () => {
+  const q = ask({ type: 'Auswahl', question: 'Was?', options: 'Liar|Rache|Help', answer: 'B' });
+  assert.equal(q.answer, 'Rache');
+  const { g, ids } = quizWith([q]);
+  assert.ok(!JSON.stringify(g.view()).includes('"correct":1'));
+  g.submitAnswer(ids[0], 1);
+  g.submitAnswer(ids[1], 0);
+  g.submitAnswer(ids[1], 2);
+  assert.equal(g.buzz(ids[2]), false);
+  g.closeAnswers();
+  assert.equal(g.phase, 'reveal');
+  assert.equal(g.players.get(ids[0]).score, 3);
+  assert.equal(g.players.get(ids[1]).score, 0);
+  assert.equal(g.view().results.length, 2);
+});
+
+test('Eintippen: Treffer sind vorgeschlagen, der Host entscheidet', () => {
+  const { g, ids } = quizWith([ask({ type: 'Eintippen', question: 'Wo?', answer: 'In der Wüste Gobi' })]);
+  g.submitAnswer(ids[0], 'in der wüste gobi!');
+  g.submitAnswer(ids[1], 'Gobi');
+  g.closeAnswers();
+  assert.equal(g.phase, 'review');
+  const review = g.hostView().review;
+  assert.equal(review.find((r) => r.id === ids[0]).points, 3);
+  assert.equal(review.find((r) => r.id === ids[1]).points, 0);
+  assert.equal(g.players.get(ids[0]).score, 0);
+  g.setAward(ids[1], 2);
+  g.setAward(ids[0], -1);
+  g.finishReview();
+  assert.equal(g.players.get(ids[1]).score, 2);
+  assert.equal(g.players.get(ids[0]).score, -1);
+  assert.equal(g.phase, 'reveal');
+  assert.deepEqual(g.rounds[0].correct, ['Ben']);
+});
+
+test('Schätzen: die nächste Zahl gewinnt, Gleichstand zählt für beide', () => {
+  const { g, ids } = quizWith([ask({ type: 'Schätzen', question: 'Wie viele?', answer: '133 Tage' })]);
+  g.submitAnswer(ids[0], '130');
+  g.submitAnswer(ids[1], '136');
+  g.submitAnswer(ids[2], '1.000');
+  g.closeAnswers();
+  assert.equal(g.players.get(ids[0]).score, 3);
+  assert.equal(g.players.get(ids[1]).score, 3);
+  assert.equal(g.players.get(ids[2]).score, 0);
+});
+
+test('Sortieren: wird gemischt gezeigt und nur die exakte Reihenfolge zählt', () => {
+  const q = ask({ type: 'Sortieren', question: 'Reihenfolge?', options: 'A|B|C|D' });
+  const { g, ids } = quizWith([q]);
+  const shown = g.view().round.options;
+  assert.notDeepEqual(shown, q.options);
+  assert.deepEqual([...shown].sort(), q.options);
+  g.submitAnswer(ids[0], q.options.map((o) => shown.indexOf(o)));
+  g.submitAnswer(ids[1], [0, 1, 2, 3].reverse().map((i) => shown.indexOf(q.options[i])));
+  assert.equal(g.submitAnswer(ids[2], [0, 0, 1, 2]), false);
+  g.closeAnswers();
+  assert.equal(g.players.get(ids[0]).score, 3);
+  assert.equal(g.players.get(ids[1]).score, 0);
+});
+
+test('Intros und Fragen lassen sich in einem Quiz mischen', () => {
+  const { g, ids, tick } = setup();
+  g.saveQuestion({ type: 'Buzzer', question: 'Wer?', answer: 'Sauron' });
+  assert.equal(g.playlist.length, 3);
+  g.start();
+  assert.equal(g.view().round.kind, 'intro');
+  g.reveal(); g.next(); g.reveal(); g.next();
+  assert.equal(g.view().round.kind, 'question');
+  assert.equal(g.view().round.audio, null);
+  g.play();
+  tick(1500);
+  g.buzz(ids[0]);
+  assert.equal(g.pos, 1500);
+});
+
+test('Antworten überleben einen Neustart', () => {
+  const { g, ids } = quizWith([ask({ type: 'Eintippen', question: 'Wo?', answer: 'Gobi' })]);
+  g.submitAnswer(ids[0], 'Gobi');
+  const copy = new Game({ saved: JSON.parse(JSON.stringify(g)) });
+  assert.equal(copy.phase, 'asking');
+  copy.closeAnswers();
+  assert.equal(copy.results[0].points, 3);
+});
+
+test('Statistik zählt Fragen bei Spielern, aber nicht als Serie', () => {
+  const { g, ids } = quizWith([ask({ type: 'Auswahl', question: 'Was?', options: 'X|Y', answer: 'X' })]);
+  g.submitAnswer(ids[0], 0);
+  g.submitAnswer(ids[1], 1);
+  g.closeAnswers();
+  g.next();
+  const s = g.stats();
+  assert.equal(s.players.find((p) => p.name === 'Anna').right, 1);
+  assert.equal(s.players.find((p) => p.name === 'Ben').wrong, 1);
+  assert.equal(s.series.length, 0);
+});
+
+test('Quiz löschen entfernt seine Fragen, wenn sie nirgends sonst stecken', () => {
+  const { g } = setup();
+  const quiz = g.addQuestions([ask({ type: 'Buzzer', question: 'Wer?', answer: 'X' })], 'Test');
+  assert.equal(g.library.length, 3);
+  g.deleteQuiz(quiz.id);
+  assert.equal(g.library.length, 2);
+});
+
+test('derselbe Importname ersetzt das alte Quiz', () => {
+  const { g } = setup();
+  g.addQuestions([ask({ type: 'Buzzer', question: 'Alt?', answer: 'X' })], 'Test');
+  g.addQuestions([ask({ type: 'Buzzer', question: 'Neu?', answer: 'X' })], 'test');
+  assert.equal(g.quizzes.length, 1);
+  assert.equal(g.library.filter((r) => r.kind === 'question').length, 1);
+});
+
+test('CSV-Import versteht Semikolon, Anführungszeichen, BOM und meldet Fehlerzeilen', () => {
+  const csv = '\ufefftyp;frage;optionen;loesung;erklaerung;punkte\r\n'
+    + 'Buzzer;"Wer sagt ""Hallo""; und?";;Ich;Weil;5\r\n'
+    + 'Auswahl;Was?;A1|A2;B;;\r\n'
+    + 'Quatsch;Was?;;X;;\r\n'
+    + 'Schätzen;Wie viele?;;keine Ahnung;;\r\n'
+    + 'Sortieren;Reihe?;Eins|Zwei;;;\r\n';
+  const { questions, errors } = importCsv(csv);
+  assert.equal(questions.length, 3);
+  assert.equal(questions[0].question, 'Wer sagt "Hallo"; und?');
+  assert.equal(questions[0].points, 5);
+  assert.equal(questions[1].correct, 1);
+  assert.deepEqual(errors.map((e) => e.row), [4, 5]);
+});
+
+test('Zahlen werden deutsch gelesen', () => {
+  assert.equal(parseNumber('1.000'), 1000);
+  assert.equal(parseNumber('1,5'), 1.5);
+  assert.equal(parseNumber('ca. 133 Tage'), 133);
+  assert.equal(parseNumber('nichts'), null);
 });

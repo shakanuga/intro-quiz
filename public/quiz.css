@@ -247,6 +247,41 @@ kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
 .quizliste li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: var(--schwarz); }
 .quizliste li.aktiv { outline: 2px solid var(--gelb); }
 .quizliste .name { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+/* Fragen */
+.frage { font-size: clamp(24px, 4.6vw, 38px); line-height: 1.2; color: var(--weiss); overflow-wrap: anywhere; }
+.eingabe { display: grid; gap: 16px; width: min(100%, 640px); }
+.antwortform { display: grid; gap: 10px; width: 100%; }
+.auswahl { display: grid; gap: 10px; }
+.auswahl .knopf { text-align: left; padding: 14px 16px; }
+.auswahl .knopf.gewaehlt { background: var(--gelb); color: var(--schwarz); border-color: var(--gelb); }
+.gespeichert { color: var(--gruen); min-height: 1.3em; }
+.sortieren { list-style: decimal inside; margin: 0; padding: 0; display: grid; gap: 4px; text-align: left; }
+.sortieren li { display: flex; gap: 10px; align-items: center; background: var(--schwarz); padding: 6px 10px; }
+.sortieren .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.buzzer.klein { width: min(62vw, 34dvh, 300px); }
+.ergebnisse { list-style: none; margin: 0; padding: 0; width: min(100%, 460px); display: grid; gap: 2px; text-align: left; }
+.ergebnisse li { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; background: var(--schwarz); padding: 4px 10px; overflow-wrap: anywhere; }
+.ergebnisse .treffer-zeile { color: var(--gruen); }
+.ergebnisse .punkte { color: var(--gelb); }
+.frage-host { display: grid; gap: 6px; margin-top: 6px; }
+.loesung { color: var(--gruen); font-size: 24px; overflow-wrap: anywhere; }
+.optionen { margin: 0; padding-left: 28px; list-style-type: upper-alpha; }
+.optionen .richtig { color: var(--gruen); }
+.wertung { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.wertung li { display: flex; gap: 10px; align-items: center; background: var(--schwarz); padding: 6px 10px; }
+.wertung .name { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--cyan); }
+.wertung .antwort { display: block; color: var(--weiss); }
+.wertung .punkte { min-width: 3ch; text-align: right; color: var(--gelb); }
+.wertung .punkte.plus { color: var(--gruen); }
+.importbox { display: grid; gap: 8px; margin-top: 8px; }
+.importbox a { color: var(--gelb); }
+.frageform { display: grid; gap: 6px; background: var(--schwarz); padding: 12px; color: var(--cyan); }
+.filter { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+select, textarea {
+  width: 100%; font: inherit; background: var(--schwarz); color: var(--weiss);
+  border: 2px solid var(--cyan); padding: 8px 10px; border-radius: 0;
+}
+.filter select { width: auto; }
 .knopf:disabled { opacity: .4; cursor: default; }
 .tabelle { overflow-x: auto; }
 .tabelle table { border-collapse: collapse; width: 100%; font-size: 18px; }

@@ -7,6 +7,7 @@ const { pipeline } = require('stream/promises');
 const { Transform } = require('stream');
 const { WebSocketServer, WebSocket } = require('ws');
 const { Game, id } = require('./lib/game');
+const { importCsv } = require('./lib/questions');
 
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -86,7 +87,7 @@ function noteFailure(ip) {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.ttf': 'font/ttf', '.woff2': 'font/woff2',
-  '.svg': 'image/svg+xml',
+  '.svg': 'image/svg+xml', '.csv': 'text/csv; charset=utf-8',
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.opus': 'audio/ogg',
   '.wav': 'audio/wav', '.flac': 'audio/flac',
 };
@@ -107,6 +108,9 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(data);
 }
 function readJson(req, limit = 4096) {
+  return readText(req, limit).then((t) => JSON.parse(t || '{}'));
+}
+function readText(req, limit) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -114,9 +118,7 @@ function readJson(req, limit = 4096) {
       size += c.length;
       if (size > limit) { reject(new Error('too large')); req.destroy(); } else chunks.push(c);
     });
-    req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch (e) { reject(e); }
-    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
@@ -178,7 +180,7 @@ function serveAudio(req, res, rid, url) {
   const token = req.headers['x-player-token'] || url.searchParams.get('k') || '';
   const host = isHost(req);
   const entry = game.library.find((r) => r.id === rid);
-  if (!entry || !/^[a-f0-9]+$/.test(rid)) return send(res, 404, { error: 'Nicht gefunden' });
+  if (!entry?.ext || !/^[a-f0-9]+$/.test(rid)) return send(res, 404, { error: 'Nicht gefunden' });
   // Spieler bekommen nur das Intro der laufenden Runde.
   if (!host && !(game.validToken(token) && game.currentId === rid)) return send(res, 403, { error: 'Kein Zugriff' });
   const file = path.join(INTRO_DIR, rid + entry.ext);
@@ -203,7 +205,7 @@ const server = http.createServer(async (req, res) => {
       if (p === '/api/host/me') return send(res, isHost(req) ? 200 : 401, { ok: isHost(req) });
       if (PAGES[p]) return serveStatic(req, res, PAGES[p]);
       if (p.startsWith('/audio/')) return serveAudio(req, res, p.slice(7), url);
-      if (/^\/[a-z-]+\.(css|js)$/.test(p) || /^\/fonts\/[\w.-]+$/.test(p)) return serveStatic(req, res, p.slice(1));
+      if (/^\/[a-z-]+\.(css|js|csv)$/.test(p) || /^\/fonts\/[\w.-]+$/.test(p)) return serveStatic(req, res, p.slice(1));
       return send(res, 404, { error: 'Nicht gefunden' });
     }
     if (req.method === 'POST' && p === '/api/host/login') {
@@ -225,6 +227,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/host/intros') {
       if (!isHost(req)) { req.resume(); return send(res, 401, { error: 'Bitte melde dich an.' }); }
       return await upload(req, res, url);
+    }
+    if (req.method === 'POST' && p === '/api/host/questions') {
+      if (!isHost(req)) { req.resume(); return send(res, 401, { error: 'Bitte melde dich an.' }); }
+      const { questions, errors } = importCsv(await readText(req, 3 * 1024 * 1024));
+      if (!questions.length) return send(res, 422, { error: 'Keine Frage ließ sich importieren.', errors });
+      const quiz = game.addQuestions(questions, url.searchParams.get('name'));
+      if (!quiz) return send(res, 413, { error: 'Die Sammlung ist voll.' });
+      return send(res, 200, { quiz: quiz.name, imported: questions.length, errors });
     }
     send(res, 404, { error: 'Nicht gefunden' });
   } catch (e) {
@@ -256,10 +266,17 @@ function viewFor(ws) {
   const v = game.view();
   v.me = ws.pid;
   v.locked = game.locked.has(ws.pid);
+  v.myAnswer = game.answers.get(ws.pid)?.text ?? null;
   return v;
 }
+// Die Sammlung kann groß werden und geht deshalb nur bei Änderungen an den Host.
+let lastLibrary = '';
 function broadcast() {
+  const library = JSON.stringify(game.libraryView());
+  const libraryChanged = library !== lastLibrary;
+  lastLibrary = library;
   for (const ws of clients) {
+    if (ws.isHost && libraryChanged) ws.send(`{"t":"library","library":${library}}`);
     if (ws.isHost || ws.pid) sendTo(ws, { t: 'state', state: viewFor(ws) });
   }
 }
@@ -297,6 +314,13 @@ const HOST_COMMANDS = {
   loadQuiz: (m) => game.loadQuiz(m.id),
   deleteQuiz: (m) => game.deleteQuiz(m.id),
   rematch: () => game.rematch(),
+  closeAnswers: () => game.closeAnswers(),
+  setAward: (m) => game.setAward(m.id, m.points),
+  finishReview: () => game.finishReview(),
+  saveQuestion: (m, ws) => {
+    const r = game.saveQuestion(m.question ?? {});
+    sendTo(ws, { t: 'questionSaved', ok: r.ok, error: r.error ?? null });
+  },
   stats: (_m, ws) => sendTo(ws, { t: 'stats', stats: game.stats() }),
   deleteGame: (m, ws) => {
     game.deleteGame(m.id);
@@ -305,7 +329,7 @@ const HOST_COMMANDS = {
   duration: (m) => game.setDuration(m.id, m.ms),
   remove: (m) => {
     const gone = game.remove(m.id);
-    if (gone) fs.unlink(path.join(INTRO_DIR, gone.id + gone.ext), () => {});
+    if (gone?.ext) fs.unlink(path.join(INTRO_DIR, gone.id + gone.ext), () => {});
     return !!gone;
   },
 };
@@ -319,7 +343,10 @@ wss.on('connection', (ws, req) => {
   clients.add(ws);
   if (wantsHost && !ws.isHost) { sendTo(ws, { t: 'needLogin' }); return ws.close(); }
   ws.on('pong', () => { ws.isAlive = true; });
-  if (ws.isHost) sendTo(ws, { t: 'state', state: viewFor(ws) });
+  if (ws.isHost) {
+    sendTo(ws, { t: 'library', library: game.libraryView() });
+    sendTo(ws, { t: 'state', state: viewFor(ws) });
+  }
 
   ws.on('message', (raw) => {
     let m;
@@ -340,6 +367,7 @@ wss.on('connection', (ws, req) => {
     }
     if (ws.pid && m?.t === 'buzz') return game.buzz(ws.pid);
     if (ws.pid && m?.t === 'loaded') return game.setLoaded(ws.pid, m.id);
+    if (ws.pid && m?.t === 'answer') return game.submitAnswer(ws.pid, m.value);
     if (ws.isHost && m?.t === 'cmd' && Object.hasOwn(HOST_COMMANDS, m.a)) HOST_COMMANDS[m.a](m, ws);
   });
   ws.on('close', () => {

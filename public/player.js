@@ -53,8 +53,11 @@ const engine = new Engine({
 });
 engine.volume(Number(store.get('quiz_vol') ?? 0.8));
 
+const buzzerOpen = () => mode === 'buzzer' || mode?.startsWith('fragebuzzer');
+const question = () => h('p', { class: 'frage' }, state.round.question ?? '');
+
 function buzz() {
-  if (mode !== 'buzzer') return;
+  if (!buzzerOpen()) return;
   link.send({ t: 'buzz' });
   navigator.vibrate?.(40);
   const b = document.querySelector('.buzzer');
@@ -62,7 +65,7 @@ function buzz() {
   setTimeout(() => b?.classList.remove('gedrueckt'), 220);
 }
 addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && !e.repeat && mode === 'buzzer') { e.preventDefault(); buzz(); }
+  if (e.code === 'Space' && !e.repeat && buzzerOpen()) { e.preventDefault(); buzz(); }
 });
 
 function eq() {
@@ -89,6 +92,48 @@ function joinView() {
     h('button', { class: 'knopf gelb', type: 'submit' }, 'Beitreten'));
 }
 
+function buzzerButton(extra = '') {
+  return h('button', { class: `buzzer ${extra}`, onpointerdown: (e) => { e.preventDefault(); buzz(); }, onclick: buzz, 'aria-label': 'Buzzer drücken' },
+    h('span', { class: 'sockel' }), h('span', { class: 'kappe' }, 'Buzzer'));
+}
+
+const send = (value) => link.send({ t: 'answer', value });
+
+function textInput(number) {
+  const field = h('input', {
+    id: 'antwort', autocomplete: 'off', maxlength: 300, 'aria-label': 'Deine Antwort', inputmode: number ? 'decimal' : 'text',
+    value: state.myAnswer ?? '',
+  });
+  return h('form', {
+    class: 'antwortform',
+    onsubmit: (e) => { e.preventDefault(); if (field.value.trim()) send(field.value); field.blur(); },
+  }, field, h('button', { class: 'knopf gelb', type: 'submit' }, 'Antwort abgeben'));
+}
+
+function choiceInput() {
+  return h('div', { class: 'auswahl' }, state.round.options.map((o, i) => h('button', {
+    class: 'knopf', 'data-option': o, onclick: () => send(i),
+  }, `${String.fromCharCode(65 + i)}) ${o}`)));
+}
+
+function orderInput() {
+  const shown = state.round.options;
+  let order = shown.map((_, i) => i);
+  const list = h('ol', { class: 'sortieren' });
+  const draw = () => list.replaceChildren(...order.map((item, pos) => h('li', {},
+    h('span', { class: 'name' }, shown[item]),
+    h('span', { class: 'mini' },
+      h('button', { 'aria-label': `${shown[item]} nach oben`, disabled: pos === 0, onclick: () => swap(pos, pos - 1) }, '↑'),
+      h('button', { 'aria-label': `${shown[item]} nach unten`, disabled: pos === order.length - 1, onclick: () => swap(pos, pos + 1) }, '↓')))));
+  const swap = (a, b) => {
+    order = [...order];
+    [order[a], order[b]] = [order[b], order[a]];
+    draw();
+  };
+  draw();
+  return h('div', { class: 'antwortform' }, list, h('button', { class: 'knopf gelb', onclick: () => send(order) }, 'Reihenfolge abgeben'));
+}
+
 function waiting(title, text) {
   return h('div', { class: 'tafelbild' }, h('h1', {}, title), h('p', {}, text));
 }
@@ -100,12 +145,27 @@ const views = {
     h('button', { class: 'knopf', onclick: () => engine.effect('test') }, 'Ton testen'),
     volumeControl()),
   ready: () => {
+    if (state.round.kind === 'question') return waiting(`Runde ${state.round.n}`, 'Gleich kommt die Frage.');
     const has = engine.has(state.round.audio);
     return waiting(`Runde ${state.round.n}`, has ? 'Bereit. Das Intro startet gleich.' : 'Intro wird geladen …');
   },
+  fragebuzzer: () => h('div', { class: 'buzzer-feld' }, question(), buzzerButton('klein'),
+    h('p', { class: 'tipp' }, 'Oder drücke die Leertaste')),
+  fragegesperrt: () => h('div', { class: 'tafelbild gesperrt-bild' }, question(),
+    h('h1', {}, 'Gesperrt'),
+    h('p', {}, 'Du warst falsch. Die anderen dürfen jetzt buzzern.')),
+  eingabe: () => {
+    const { type } = state.round;
+    const input = { text: () => textInput(false), estimate: () => textInput(true), choice: choiceInput, order: orderInput }[type]();
+    return h('div', { class: 'eingabe' }, question(), input,
+      h('p', { id: 'gespeichert', class: 'gespeichert' }),
+      h('p', { id: 'antwortzeit', class: 'antwortzeit' }));
+  },
+  pruefen: () => h('div', { class: 'tafelbild' }, question(),
+    h('p', {}, state.myAnswer ? `Deine Antwort: ${state.myAnswer}` : 'Du hast nicht geantwortet.'),
+    h('p', { class: 'vorzeile' }, 'Die Antworten werden geprüft.')),
   buzzer: () => h('div', { class: 'buzzer-feld' },
-    h('button', { class: 'buzzer', onpointerdown: (e) => { e.preventDefault(); buzz(); }, onclick: buzz, 'aria-label': 'Buzzer drücken' },
-      h('span', { class: 'sockel' }), h('span', { class: 'kappe' }, 'Buzzer')),
+    buzzerButton(),
     h('div', { class: 'laufband' }, eq(), h('span', { id: 'zeit', class: 'zeit' }, '0:00')),
     h('p', { class: 'tipp' }, 'Oder drücke die Leertaste')),
   locked: () => h('div', { class: 'tafelbild gesperrt-bild' },
@@ -113,18 +173,29 @@ const views = {
     h('p', {}, 'Du warst falsch. Die anderen dürfen jetzt buzzern.'),
     eq()),
   meine: () => h('div', { class: 'tafelbild treffer' },
+    state.round.question ? question() : null,
     h('h1', {}, 'Du bist dran'),
     h('p', {}, 'Sag deine Antwort in Discord.'),
     h('p', { id: 'antwortzeit', class: 'antwortzeit' })),
   fremd: () => h('div', { class: 'tafelbild treffer fremd' },
+    state.round.question ? question() : null,
     h('h1', {}, state.buzzer?.name ?? 'Jemand'),
     h('p', {}, 'hat gebuzzert und antwortet in Discord.'),
     h('p', { id: 'antwortzeit', class: 'antwortzeit' })),
   pause: () => waiting('Pause', 'Das Intro geht gleich weiter.'),
-  reveal: () => h('div', { class: 'tafelbild aufloesung' },
-    h('p', { class: 'vorzeile' }, state.winner ? `Richtig, ${state.winner.name}!` : 'Niemand hat es erraten.'),
-    h('h1', {}, state.round.title ?? ''),
-    state.outro ? eq() : null),
+  reveal: () => {
+    const { results } = state;
+    const lead = state.winner ? `Richtig, ${state.winner.name}!`
+      : results.length ? 'Die Lösung' : 'Niemand hat es erraten.';
+    return h('div', { class: 'tafelbild aufloesung' },
+      state.round.question ? question() : null,
+      h('p', { class: 'vorzeile' }, lead),
+      h('h1', {}, state.round.title ?? ''),
+      state.round.note ? h('p', {}, state.round.note) : null,
+      results.length ? h('ul', { class: 'ergebnisse' }, results.map((r) => h('li', { class: r.points > 0 ? 'treffer-zeile' : '' },
+        h('span', { class: 'name' }, r.name), h('span', {}, r.answer), h('span', { class: 'punkte' }, r.points > 0 ? `+${r.points}` : String(r.points))))) : null,
+      state.outro ? eq() : null);
+  },
   ende: () => {
     const top = state.players.slice(0, 3);
     return h('div', { class: 'tafelbild ende' },
@@ -148,6 +219,9 @@ function pickMode() {
   const s = state;
   if (s.phase === 'lobby') return 'lobby';
   if (s.phase === 'ready') return `ready:${engine.has(s.round.audio)}:${s.round.n}`;
+  if (s.phase === 'asking' && s.round.type === 'buzzer') return s.locked ? `fragegesperrt:${s.round.n}` : `fragebuzzer:${s.round.n}`;
+  if (s.phase === 'asking') return `eingabe:${s.round.n}:${s.round.type}`;
+  if (s.phase === 'review') return `pruefen:${s.round.n}`;
   if (s.phase === 'playing') return s.locked ? 'locked' : 'buzzer';
   if (s.phase === 'paused') return 'pause';
   if (s.phase === 'judging') return s.buzzer?.id === s.me ? 'meine' : `fremd:${s.buzzer?.id}`;
@@ -165,6 +239,11 @@ function render() {
     document.body.dataset.modus = base;
   }
   if (!state) { $('tafel').hidden = true; $('runde').textContent = ''; return; }
+  const saved = $('gespeichert');
+  if (saved) saved.textContent = state.myAnswer ? `Gespeichert: ${state.myAnswer}. Du kannst noch ändern.` : '';
+  for (const b of document.querySelectorAll('[data-option]')) {
+    b.classList.toggle('gewaehlt', b.dataset.option === state.myAnswer);
+  }
   $('runde').textContent = state.round.n ? `Runde ${state.round.n}/${state.round.total}` : '';
   $('tafel').hidden = false;
   $('liste').replaceChildren(...scoreRows(state.players, { me: state.me }));

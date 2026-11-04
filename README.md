@@ -1,6 +1,6 @@
 # Intro-Quiz
 
-Ein Ratequiz für Serien-Intros mit Buzzer im Browser, gemacht für Runden über Discord oder andere Sprachchats. Niemand muss etwas installieren oder einen Bildschirm teilen: Der Ton läuft direkt im Browser jedes Spielers und startet überall gleichzeitig.
+Ein Quiz mit Buzzer im Browser für Serien-Intros und eigene Fragen, gemacht für Runden über Discord oder andere Sprachchats. Niemand muss etwas installieren oder einen Bildschirm teilen: Der Ton läuft direkt im Browser jedes Spielers und startet überall gleichzeitig.
 
 ## So läuft ein Spiel
 
@@ -12,9 +12,32 @@ Ein Ratequiz für Serien-Intros mit Buzzer im Browser, gemacht für Runden über
 
 Die Spieler buzzern per Knopf oder Leertaste. Der Host steuert auch per Tastatur: Leertaste für Abspielen und Pause, `R` für richtig, `F` für falsch und `N` für die nächste Runde.
 
+## Fragetypen
+
+Ein Quiz kann Intros und alle Fragetypen beliebig mischen.
+
+| Typ | Ablauf | Wertung |
+| --- | --- | --- |
+| Buzzer | Wer zuerst buzzert, antwortet im Sprachchat. | Host |
+| Eintippen | Alle tippen eine Antwort. Exakte Treffer sind vorgeschlagen. | Host, auch mit Teilpunkten |
+| Auswahl | Alle wählen eine von bis zu 8 Optionen. | automatisch |
+| Schätzen | Alle geben eine Zahl ein. Die nächste gewinnt, bei Gleichstand alle Nächsten. | automatisch |
+| Sortieren | Alle bringen gemischte Einträge in die richtige Reihenfolge. | automatisch, nur exakt richtig zählt |
+
+Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
+
+| Spalte | Inhalt |
+| --- | --- |
+| `typ` | Buzzer, Eintippen, Auswahl, Schätzen oder Sortieren |
+| `frage` | die Frage |
+| `optionen` | bei Auswahl und Sortieren, getrennt mit `\|`. Bei Sortieren in der richtigen Reihenfolge. |
+| `loesung` | die Lösung. Bei Auswahl der Text oder Buchstabe, bei Schätzen eine Zahl, bei Sortieren leer. |
+| `erklaerung` | erscheint freiwillig bei der Auflösung |
+| `punkte` | leer bedeutet der Standardwert |
+
 ## Quizze und Statistik
 
-Im Bereich „Intros und Quizze“ liegen alle hochgeladenen Intros. Du wählst aus, welche ins aktuelle Quiz kommen, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
+Im Bereich „Intros und Fragen“ liegen alle Intros und Fragen. Du wählst aus, welche ins aktuelle Quiz kommen, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
 
 Der Bereich „Statistik“ ist nur für den Host sichtbar. Er zeigt Siege, Punkte, richtige und falsche Antworten und die schnellste Antwort je Spieler, dazu jede Serie und jedes vergangene Spiel mit allen Runden. Spieler werden über ihren Namen wiedererkannt, sie sollten also immer denselben verwenden.
 
@@ -26,7 +49,7 @@ Mit „Nochmal mit denselben Spielern“ bleiben alle im Spiel, die Punkte start
 | --- | --- | --- |
 | Richtig | 3 | Punkte für eine richtige Antwort |
 | Falsch | -1 | Punkte für eine falsche Antwort |
-| Antwortzeit | 0 (aus) | Zeigt nach dem Buzzern allen einen Countdown. Gewertet wird weiter vom Host. |
+| Antwortzeit | 0 (aus) | Zeigt nach dem Buzzern und bei Eingabefragen allen einen Countdown. Der Host schließt die Runde selbst. |
 | Nach falscher Antwort erneut buzzern | aus | Aus: Wer falsch liegt, ist für diese Runde gesperrt. An: Alle dürfen weiter buzzern. |
 
 ## Starten mit Docker
