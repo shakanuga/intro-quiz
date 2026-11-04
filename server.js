@@ -314,6 +314,7 @@ const HOST_COMMANDS = {
   loadQuiz: (m) => game.loadQuiz(m.id),
   deleteQuiz: (m) => game.deleteQuiz(m.id),
   rematch: () => game.rematch(),
+  setMode: (m) => game.setMode(m.mode),
   closeAnswers: () => game.closeAnswers(),
   skipTurn: () => game.skipTurn(),
   setTeam: (m) => game.setTeam(m.id, m.team),

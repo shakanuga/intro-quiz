@@ -53,6 +53,7 @@ const engine = new Engine({
 });
 engine.volume(Number(store.get('quiz_vol') ?? 0.8));
 
+const MODE_NAMES = { intro: 'Intro-Quiz', fragen: '50 Fragen', ordnung: 'Ordnungshüter', zuordnen: 'Zuordnen' };
 const buzzerOpen = () => mode === 'buzzer' || mode?.startsWith('fragebuzzer');
 const question = () => h('p', { class: 'frage' }, state.round.question ?? '');
 
@@ -163,7 +164,8 @@ function waiting(title, text) {
 const views = {
   lobby: () => h('div', { class: 'tafelbild' },
     h('h1', {}, 'Du bist dabei'),
-    h('p', {}, 'Gleich geht es los. Prüfe kurz deinen Ton.'),
+    h('p', { class: 'vorzeile' }, `Spielmodus: ${MODE_NAMES[state.mode]}`),
+    h('p', {}, state.mode === 'intro' ? 'Gleich geht es los. Prüfe kurz deinen Ton.' : 'Gleich geht es los.'),
     h('button', { class: 'knopf', onclick: () => engine.effect('test') }, 'Ton testen'),
     volumeControl()),
   ready: () => {
@@ -281,7 +283,7 @@ function volumeControl() {
 function pickMode() {
   if (!state) return 'join';
   const s = state;
-  if (s.phase === 'lobby') return 'lobby';
+  if (s.phase === 'lobby') return `lobby:${s.mode}`;
   if (s.phase === 'ready') return `ready:${engine.has(s.round.audio)}:${s.round.n}`;
   if (s.phase === 'asking' && s.round.type === 'buzzer') return s.locked ? `fragegesperrt:${s.round.n}` : `fragebuzzer:${s.round.n}`;
   if (s.phase === 'asking') return `eingabe:${s.round.n}:${s.round.type}`;

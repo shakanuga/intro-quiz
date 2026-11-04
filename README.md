@@ -1,6 +1,6 @@
 # Intro-Quiz
 
-Ein Quiz mit Buzzer im Browser für Serien-Intros und eigene Fragen, gemacht für Runden über Discord oder andere Sprachchats. Niemand muss etwas installieren oder einen Bildschirm teilen: Der Ton läuft direkt im Browser jedes Spielers und startet überall gleichzeitig.
+Ein Quiz mit Buzzer im Browser und mehreren Spielmodi, gemacht für Runden über Discord oder andere Sprachchats. Niemand muss etwas installieren oder einen Bildschirm teilen: Der Ton läuft direkt im Browser jedes Spielers und startet überall gleichzeitig.
 
 ## So läuft ein Spiel
 
@@ -14,7 +14,16 @@ Die Spieler buzzern per Knopf oder Leertaste. Der Host steuert auch per Tastatur
 
 ## Fragetypen
 
-Ein Quiz kann Intros und alle Fragetypen beliebig mischen.
+Die Fragetypen gehören zu vier Spielmodi. Inhalte und gespeicherte Quizze sind je Modus getrennt, innerhalb von „50 Fragen“ lassen sich die fünf ersten Typen mischen.
+
+| Spielmodus | Inhalt |
+| --- | --- |
+| Intro-Quiz | hochgeladene Intros |
+| 50 Fragen | Buzzer, Eintippen, Auswahl, Schätzen und Sortieren |
+| Ordnungshüter | Listen zum Einordnen |
+| Zuordnen | Paare mit Ködern |
+
+Den Modus wählst du im Host-Bereich vor dem Spielstart, auch für ein weiteres Spiel mit denselben Spielern.
 
 | Typ | Ablauf | Wertung |
 | --- | --- | --- |
@@ -26,7 +35,7 @@ Ein Quiz kann Intros und alle Fragetypen beliebig mischen.
 | Ordnungshüter | Teams oder Einzelne ordnen abwechselnd Einträge in eine wachsende Liste ein. | automatisch |
 | Zuordnen | Teams oder Einzelne bilden Paare, bis ein Paar falsch ist. | automatisch |
 
-Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
+Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen, und jeder Inhalt landet im passenden Modus. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
 
 | Spalte | Inhalt |
 | --- | --- |
@@ -54,7 +63,7 @@ Beide Modi sind Formaten von PietSmiet nachempfunden. Dieses Projekt steht in ke
 
 ## Quizze und Statistik
 
-Im Bereich „Intros und Fragen“ liegen alle Intros und Fragen. Du wählst aus, welche ins aktuelle Quiz kommen, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
+Im Bereich „Inhalte“ liegen die Intros oder Fragen des gewählten Modus. Du wählst aus, was ins aktuelle Quiz kommt, und speicherst die Auswahl mit Reihenfolge unter einem Namen. Gespeicherte Quizze lädst du vor dem Spielstart. An jedem Intro steht, wie oft es schon gespielt wurde.
 
 Der Bereich „Statistik“ ist nur für den Host sichtbar. Er zeigt Siege, Punkte, richtige und falsche Antworten und die schnellste Antwort je Spieler, dazu jede Serie und jedes vergangene Spiel mit allen Runden. Spieler werden über ihren Namen wiedererkannt, sie sollten also immer denselben verwenden.
 

@@ -403,19 +403,73 @@ test('Sortieren: wird gemischt gezeigt und nur die exakte Reihenfolge zählt', (
   assert.equal(g.players.get(ids[1]).score, 0);
 });
 
-test('Intros und Fragen lassen sich in einem Quiz mischen', () => {
-  const { g, ids, tick } = setup();
+test('Modi trennen Inhalte: Fragen landen nicht im Intro-Quiz', () => {
+  const { g, tick } = setup();
   g.saveQuestion({ type: 'Buzzer', question: 'Wer?', answer: 'Sauron' });
-  assert.equal(g.playlist.length, 3);
+  assert.equal(g.playlist.length, 2);
   g.start();
+  assert.equal(g.view().round.total, 2);
   assert.equal(g.view().round.kind, 'intro');
-  g.reveal(); g.next(); g.reveal(); g.next();
+  g.newGame();
+  assert.ok(g.setMode('fragen'));
+  assert.equal(g.view().mode, 'fragen');
+  assert.equal(g.playlist.length, 1);
+  assert.equal(g.include('a'), false);
+  g.start();
+  assert.equal(g.setMode('intro'), false);
+  g.play();
   assert.equal(g.view().round.kind, 'question');
   assert.equal(g.view().round.audio, null);
-  g.play();
+  const p = g.join({ code: g.code, name: 'Eva' });
+  g.setOnline(p.id, true);
   tick(1500);
-  g.buzz(ids[0]);
+  g.buzz(p.id);
   assert.equal(g.pos, 1500);
+});
+
+test('Quiz laden wechselt in den passenden Modus', () => {
+  const { g } = setup();
+  const quiz = g.addQuestions([ask({ type: 'Zuordnen', question: 'Q', options: 'A=1|B=2' })], 'Paare');
+  assert.equal(quiz.mode, 'zuordnen');
+  assert.equal(g.mode, 'intro');
+  assert.equal(g.hostView().quizzes.length, 0);
+  g.loadQuiz(quiz.id);
+  assert.equal(g.mode, 'zuordnen');
+  assert.equal(g.hostView().quizzes.length, 1);
+});
+
+test('eine Datei mit mehreren Formaten ergibt je Modus ein Quiz', () => {
+  const { g } = setup();
+  g.addQuestions([
+    ask({ type: 'Buzzer', question: 'F', answer: 'X' }),
+    ask({ type: 'Ordnungshüter', question: 'O', options: 'A=1|B=2|C=3' }),
+    ask({ type: 'Zuordnen', question: 'Z', options: 'A=1|B=2' }),
+  ], 'Vorlage');
+  assert.deepEqual(g.quizzes.map((q) => q.mode).sort(), ['fragen', 'ordnung', 'zuordnen']);
+});
+
+test('Nochmal spielen erlaubt einen anderen Modus mit denselben Spielern', () => {
+  const { g, ids } = setup();
+  g.start();
+  g.rematch();
+  assert.ok(g.setMode('zuordnen'));
+  assert.ok(g.players.has(ids[0]));
+});
+
+test('alte Spielstände werden auf die Modi verteilt', () => {
+  const library = [
+    { id: 'a', ext: '.mp3', title: 'A', size: 1 },
+    { id: 'q', kind: 'question', type: 'buzzer', title: 'Q', question: 'Q', answer: 'X', options: [] },
+  ];
+  const g = new Game({ saved: { library, playlist: ['q', 'a'], quizzes: [{ id: 'z', name: 'Alt', ids: ['q'] }], quizName: 'Alt' } });
+  assert.equal(g.mode, 'fragen');
+  assert.deepEqual(g.playlists.intro, ['a']);
+  assert.deepEqual(g.playlists.fragen, ['q']);
+  assert.equal(g.quizzes[0].mode, 'fragen');
+  assert.equal(g.quizName, 'Alt');
+  const again = new Game({ saved: JSON.parse(JSON.stringify(g)) });
+  assert.equal(again.mode, 'fragen');
+  assert.deepEqual(again.playlists.intro, ['a']);
 });
 
 test('Antworten überleben einen Neustart', () => {

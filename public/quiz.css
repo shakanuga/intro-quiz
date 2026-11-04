@@ -305,6 +305,8 @@ kbd { font: inherit; font-size: 16px; opacity: .75; margin-left: 10px; }
 .gefunden .eintrag .name { flex: 1 1 45%; }
 .gefunden .wert { flex: 1 1 45%; white-space: normal; text-align: right; overflow-wrap: anywhere; }
 .paarliste { list-style: none; padding-left: 0; }
+.modi { display: flex; flex-wrap: wrap; gap: 6px; }
+.modi .knopf.aktiv { background: var(--gelb); color: var(--schwarz); border-color: var(--gelb); opacity: 1; }
 .host .teamname { display: none; }
 .teamwahl { width: auto; padding: 0 2px; border-width: 1px; font-size: 16px; height: 30px; }
 .importbox { display: grid; gap: 8px; margin-top: 8px; }
