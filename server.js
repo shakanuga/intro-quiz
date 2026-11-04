@@ -135,10 +135,10 @@ const BUILD = (() => {
 function withBuild(file, data) {
   const ext = path.extname(file);
   if (ext === '.html') {
-    return data.toString('utf8').replace(/(href|src)="\/([a-z-]+\.(?:css|js))"/g, `$1="/$2?v=\${BUILD}"`);
+    return data.toString('utf8').replace(/(href|src)="\/([a-z-]+\.(?:css|js))"/g, `$1="/$2?v=${BUILD}"`);
   }
   if (ext === '.js') {
-    return data.toString('utf8').replace(/from '\.\/([a-z-]+\.js)'/g, `from './$1?v=\${BUILD}'`);
+    return data.toString('utf8').replace(/from '\.\/([a-z-]+\.js)'/g, `from './$1?v=${BUILD}'`);
   }
   return data;
 }
