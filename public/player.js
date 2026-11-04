@@ -134,6 +134,21 @@ function orderInput() {
   return h('div', { class: 'antwortform' }, list, h('button', { class: 'knopf gelb', onclick: () => send(order) }, 'Reihenfolge abgeben'));
 }
 
+function placedList(r, onSlot) {
+  const slot = (i) => (onSlot ? h('li', { class: 'platz-slot' }, h('button', {
+    class: 'knopf klein', disabled: true, 'data-slot': i, onclick: () => onSlot(i),
+  }, 'Hier einordnen')) : null);
+  return h('ol', { class: 'ordnung' }, slot(0), r.placed.flatMap((p, i) => [
+    h('li', { class: 'eintrag' }, h('span', { class: 'name' }, p.text), p.value ? h('span', { class: 'wert' }, p.value) : null),
+    slot(i + 1),
+  ]));
+}
+
+function unitLine(r) {
+  return h('ul', { class: 'parteien' }, r.units.map((u) => h('li', { class: `${u.out ? 'raus' : ''}${u.name === r.turn ? ' dran' : ''}` },
+    `${u.name}: ${u.out ? 'raus' : `${u.errors} Fehler`}`)));
+}
+
 function waiting(title, text) {
   return h('div', { class: 'tafelbild' }, h('h1', {}, title), h('p', {}, text));
 }
@@ -160,6 +175,25 @@ const views = {
     return h('div', { class: 'eingabe' }, question(), input,
       h('p', { id: 'gespeichert', class: 'gespeichert' }),
       h('p', { id: 'antwortzeit', class: 'antwortzeit' }));
+  },
+  sorting: () => {
+    const r = state.rank;
+    const mine = r.turnMembers.includes(state.me);
+    let chosen = null;
+    const choose = (id, button) => {
+      chosen = id;
+      for (const b of document.querySelectorAll('.pool .knopf')) b.classList.toggle('gewaehlt', b === button);
+      for (const b of document.querySelectorAll('[data-slot]')) b.disabled = false;
+    };
+    const place = (slot) => { if (chosen !== null) link.send({ t: 'place', item: chosen, slot }); };
+    return h('div', { class: 'einordnen' }, question(), unitLine(r),
+      h('p', { class: mine ? 'zug meiner' : 'zug' }, mine ? 'Du bist dran: Wähle einen Eintrag und dann seinen Platz.' : `${r.turn} ist dran.`),
+      r.last ? h('p', { class: r.last.right ? 'letzter gut' : 'letzter schlecht' },
+        `${r.last.unit}: ${r.last.item} ${r.last.right ? 'war richtig.' : 'war falsch.'}`) : null,
+      h('div', { class: 'pool' }, r.remaining.map((x) => h('button', {
+        class: 'knopf', disabled: !mine, onclick: (e) => choose(x.id, e.currentTarget),
+      }, x.text))),
+      placedList(r, mine ? place : null));
   },
   pruefen: () => h('div', { class: 'tafelbild' }, question(),
     h('p', {}, state.myAnswer ? `Deine Antwort: ${state.myAnswer}` : 'Du hast nicht geantwortet.'),
@@ -190,7 +224,7 @@ const views = {
     return h('div', { class: 'tafelbild aufloesung' },
       state.round.question ? question() : null,
       h('p', { class: 'vorzeile' }, lead),
-      h('h1', {}, state.round.title ?? ''),
+      state.rank ? placedList(state.rank, null) : h('h1', {}, state.round.title ?? ''),
       state.round.note ? h('p', {}, state.round.note) : null,
       results.length ? h('ul', { class: 'ergebnisse' }, results.map((r) => h('li', { class: r.points > 0 ? 'treffer-zeile' : '' },
         h('span', { class: 'name' }, r.name), h('span', {}, r.answer), h('span', { class: 'punkte' }, r.points > 0 ? `+${r.points}` : String(r.points))))) : null,
@@ -222,6 +256,7 @@ function pickMode() {
   if (s.phase === 'asking' && s.round.type === 'buzzer') return s.locked ? `fragegesperrt:${s.round.n}` : `fragebuzzer:${s.round.n}`;
   if (s.phase === 'asking') return `eingabe:${s.round.n}:${s.round.type}`;
   if (s.phase === 'review') return `pruefen:${s.round.n}`;
+  if (s.phase === 'sorting') return `sorting:${s.round.n}:${s.rank.placed.length}:${s.rank.turn}`;
   if (s.phase === 'playing') return s.locked ? 'locked' : 'buzzer';
   if (s.phase === 'paused') return 'pause';
   if (s.phase === 'judging') return s.buzzer?.id === s.me ? 'meine' : `fremd:${s.buzzer?.id}`;

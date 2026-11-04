@@ -18,7 +18,7 @@ let editing = null;
 let editError = '';
 const LIST_LIMIT = 300;
 const TABS = { spiel: 'Spiel', intros: 'Intros und Fragen', statistik: 'Statistik' };
-const TYPE_NAMES = { buzzer: 'Buzzer', choice: 'Auswahl', text: 'Eintippen', estimate: 'Schätzen', order: 'Sortieren' };
+const TYPE_NAMES = { buzzer: 'Buzzer', choice: 'Auswahl', text: 'Eintippen', estimate: 'Schätzen', order: 'Sortieren', rank: 'Ordnungshüter' };
 
 const cmd = (a, extra = {}) => link.send({ t: 'cmd', a, ...extra });
 
@@ -91,6 +91,9 @@ function buildShell() {
     bilanz: h('section', { class: 'spalte', id: 'bilanz' }),
     spiele: h('section', { class: 'spalte', id: 'spiele' }),
   };
+  cols.punkteListe = h('div', { class: 'stapel' });
+  cols.punkteRegeln = h('div', { class: 'stapel' });
+  cols.punkte.append(cols.punkteListe, cols.punkteRegeln);
   $('reiter').hidden = false;
   $('reiter').replaceChildren(...Object.entries(TABS).map(([key, label]) => h('button', {
     'data-tab': key,
@@ -129,6 +132,11 @@ function actions(s) {
         ? button('Spiel starten', 'start', 'gelb')
         : h('p', { class: 'hinweis-text' }, 'Füge unter „Intros und Fragen“ Inhalte hinzu oder lade ein gespeichertes Quiz.')];
     case 'ready':
+      if (s.round.type === 'rank') {
+        return s.players.filter((p) => p.online).length > 1
+          ? [button('Liste starten', 'play', 'gelb', ' '), button('Ohne Spiel auflösen', 'reveal')]
+          : [h('p', { class: 'hinweis-text' }, 'Dafür braucht es mindestens zwei Spieler.'), button('Ohne Spiel auflösen', 'reveal')];
+      }
       return s.round.kind === 'question'
         ? [button('Frage zeigen', 'play', 'gelb', ' '), button('Ohne Antworten auflösen', 'reveal')]
         : [button('Intro abspielen', 'play', 'gelb', ' '), button('Ohne Buzzer auflösen', 'reveal')];
@@ -137,6 +145,7 @@ function actions(s) {
         ? [button('Auflösen', 'reveal')]
         : [button('Antworten schließen', 'closeAnswers', 'gelb', ' '), button('Ohne Wertung auflösen', 'reveal')];
     case 'review': return [button('Wertung abschließen', 'finishReview', 'gelb', ' ')];
+    case 'sorting': return [button('Zug überspringen', 'skipTurn'), button('Ohne Punkte beenden', 'reveal')];
     case 'playing': return [button('Pause', 'pause', '', ' '), button('Auflösen', 'reveal')];
     case 'paused': return [button('Weiter abspielen', 'resume', 'gelb', ' '), button('Auflösen', 'reveal')];
     case 'judging': return [button('Richtig', 'correct', 'gruen', 'r'), button('Falsch', 'wrong', 'rot', 'f')];
@@ -151,11 +160,25 @@ function actions(s) {
 const STATUS = {
   lobby: 'Warten auf Spieler', ready: 'Bereit', playing: 'Intro läuft', paused: 'Pause',
   judging: 'Antwort prüfen', reveal: 'Aufgelöst', finished: 'Spiel beendet',
-  asking: 'Frage läuft', review: 'Antworten werten',
+  asking: 'Frage läuft', review: 'Antworten werten', sorting: 'Einordnen läuft',
 };
+
+function rankPanel(s) {
+  const r = s.round;
+  const placed = new Set((s.rank?.placed ?? []).map((p) => p.text));
+  return h('div', { class: 'frage-host' },
+    h('p', { class: 'hinweis-text' }, `Ordnungshüter, ${r.points} ${r.points === 1 ? 'Punkt' : 'Punkte'}. Teams: nur der Sieger punktet. Einzeln: jeder Platz einen weniger.`),
+    s.rank ? h('ul', { class: 'parteien' }, s.rank.units.map((u) => h('li', { class: `${u.out ? 'raus' : ''}${u.name === s.rank.turn && s.phase === 'sorting' ? ' dran' : ''}` },
+      `${u.name}: ${u.out ? 'raus' : `${u.errors} Fehler`}`))) : null,
+    s.rank?.last ? h('p', { class: s.rank.last.right ? 'letzter gut' : 'letzter schlecht' },
+      `${s.rank.last.unit}: ${s.rank.last.item} ${s.rank.last.right ? 'war richtig.' : 'war falsch.'}`) : null,
+    h('ol', { class: 'optionen zahlen' }, r.solution.map((o, i) => h('li', { class: placed.has(o) ? 'richtig' : '' },
+      r.values[i] ? `${o}: ${r.values[i]}` : o))));
+}
 
 function questionPanel(s) {
   const r = s.round;
+  if (r.type === 'rank') return rankPanel(s);
   const solution = r.type === 'choice' || r.type === 'order' ? r.solution : [];
   return h('div', { class: 'frage-host' },
     h('p', { class: 'hinweis-text' }, `${TYPE_NAMES[r.type]}, ${r.points} ${r.points === 1 ? 'Punkt' : 'Punkte'}`),
@@ -217,6 +240,10 @@ function regie(s) {
 // ---------- Punkte ----------
 function punkte(s) {
   const adjust = (p) => h('span', { class: 'mini' },
+    h('select', {
+      class: 'teamwahl', 'aria-label': `Team von ${p.name}`,
+      onchange: (e) => { cmd('setTeam', { id: p.id, team: e.target.value }); e.target.blur(); },
+    }, ['', 1, 2, 3, 4].map((t) => h('option', { value: t, selected: String(p.team ?? '') === String(t) }, t ? `T${t}` : '–'))),
     h('button', { 'aria-label': `${p.name} einen Punkt abziehen`, onclick: () => cmd('adjust', { id: p.id, delta: -1 }) }, '−'),
     h('button', { 'aria-label': `${p.name} einen Punkt geben`, onclick: () => cmd('adjust', { id: p.id, delta: 1 }) }, '+'),
     h('button', {
@@ -232,15 +259,21 @@ function punkte(s) {
     e.target.blur(); // Sonst bleibt die Punkteliste stehen, solange das Feld den Fokus hat.
   };
   for (const input of [right, wrong, seconds, multi]) input.addEventListener('change', save);
-  return [
+  const list = [
     h('h2', {}, `Punkte (${s.players.filter((p) => p.online).length} online)`),
     s.players.length ? h('ol', { class: 'liste' }, scoreRows(s.players, { extra: adjust })) : h('p', { class: 'hinweis-text' }, 'Noch niemand beigetreten.'),
+  ];
+  const rules = [
     h('div', { class: 'regeln' },
       h('label', { for: 'p-r' }, 'Richtig'), right,
       h('label', { for: 'p-f' }, 'Falsch'), wrong),
+    s.players.length > 1 ? h('div', { class: 'neben' },
+      h('button', { class: 'knopf klein', onclick: () => cmd('randomTeams', { count: 2 }) }, 'Zwei Teams auslosen'),
+      s.players.some((p) => p.team) ? h('button', { class: 'knopf klein', onclick: () => cmd('clearTeams') }, 'Teams auflösen') : null) : null,
     h('label', { class: 'option', for: 'p-z' }, 'Antwortzeit in Sekunden (0 = aus)', seconds),
     h('label', { class: 'option haken', for: 'p-m' }, multi, 'Nach falscher Antwort erneut buzzern'),
   ];
+  return { list, rules };
 }
 
 // ---------- Intros ----------
@@ -320,21 +353,32 @@ function quizze(s) {
   ];
 }
 
+// Die Dateiauswahl bleibt dasselbe Element: Würde sie neu gezeichnet, während der
+// Dialog offen ist, ginge die Auswahl verloren.
+const introPicker = h('input', {
+  type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,audio/*',
+  onchange: (e) => { uploadFiles([...e.target.files]); e.target.value = ''; },
+});
+const csvPicker = h('input', {
+  id: 'csv', type: 'file', multiple: true, accept: '.csv,text/csv', class: 'versteckt',
+  onchange: (e) => { importFiles([...e.target.files]); e.target.value = ''; },
+});
+
 async function importFiles(files) {
   for (const file of files) {
-    const buffer = await file.arrayBuffer();
-    let text;
-    // Ältere Excel-Versionen speichern CSV nicht als UTF-8.
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { text = new TextDecoder('windows-1252').decode(buffer); }
     const name = file.name.replace(/\.[^.]+$/, '');
     let msgs;
     try {
+      const buffer = await file.arrayBuffer();
+      let text;
+      // Ältere Excel-Versionen speichern CSV nicht als UTF-8.
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { text = new TextDecoder('windows-1252').decode(buffer); }
       const r = await fetch(`/api/host/questions?name=${encodeURIComponent(name)}`, { method: 'POST', body: text });
       const body = await r.json().catch(() => ({}));
       const rows = (body.errors ?? []).slice(0, 5).map((e) => `Zeile ${e.row}: ${e.error}`);
       const more = (body.errors?.length ?? 0) > 5 ? [`und ${body.errors.length - 5} weitere Fehler`] : [];
       msgs = [r.ok ? `${file.name}: ${body.imported} Fragen importiert` : `${file.name}: ${body.error ?? 'Der Import ist fehlgeschlagen.'}`, ...rows, ...more];
-    } catch { msgs = [`${file.name}: Die Verbindung ist abgebrochen.`]; }
+    } catch { msgs = [`${file.name}: Die Datei ließ sich nicht lesen oder senden.`]; }
     imports = [...msgs, ...imports].slice(0, 12);
     render();
   }
@@ -344,10 +388,7 @@ function importBox() {
   return h('div', { class: 'importbox' },
     h('h2', {}, 'Fragen importieren'),
     h('p', { class: 'hinweis-text' }, 'Jede CSV-Datei wird zu einem gespeicherten Quiz mit dem Dateinamen.'),
-    h('input', {
-      id: 'csv', type: 'file', multiple: true, accept: '.csv,text/csv', class: 'versteckt',
-      onchange: (e) => { importFiles([...e.target.files]); e.target.value = ''; },
-    }),
+    csvPicker,
     h('label', { class: 'ablage', for: 'csv' }, 'CSV-Datei auswählen'),
     h('a', { href: '/vorlage.csv', download: 'vorlage.csv' }, 'Vorlage herunterladen'),
     imports.length ? h('ul', { class: 'meldungen' }, imports.map((u) => h('li', {}, u))) : null);
@@ -356,7 +397,8 @@ function importBox() {
 function questionForm() {
   const q = editing;
   const set = (key) => (e) => { editing[key] = e.target.value; };
-  const lines = ['choice', 'order'].includes(q.type);
+  const lines = ['choice', 'order', 'rank'].includes(q.type);
+  const fixed = ['order', 'rank'].includes(q.type);
   return h('form', {
     class: 'frageform',
     onsubmit: (e) => {
@@ -371,10 +413,14 @@ function questionForm() {
   }, Object.entries(TYPE_NAMES).map(([k, v]) => h('option', { value: k, selected: k === q.type }, v))),
   h('label', { for: 'f-frage' }, 'Frage'),
   h('textarea', { id: 'f-frage', rows: 2, required: true, maxlength: 500, oninput: set('question') }, q.question),
-  lines ? h('label', { for: 'f-optionen' }, q.type === 'order' ? 'Einträge in der richtigen Reihenfolge, je Zeile einer' : 'Optionen, je Zeile eine') : null,
+  lines ? h('label', { for: 'f-optionen' }, {
+    order: 'Einträge in der richtigen Reihenfolge, je Zeile einer',
+    rank: 'Einträge in der richtigen Reihenfolge, je Zeile Eintrag=Wert',
+    choice: 'Optionen, je Zeile eine',
+  }[q.type]) : null,
   lines ? h('textarea', { id: 'f-optionen', rows: 4, oninput: set('optionText') }, q.optionText) : null,
-  q.type === 'order' ? null : h('label', { for: 'f-loesung' }, q.type === 'choice' ? 'Lösung: Text der richtigen Option oder Buchstabe' : 'Lösung'),
-  q.type === 'order' ? null : h('input', { id: 'f-loesung', maxlength: 500, value: q.answer, oninput: set('answer') }),
+  fixed ? null : h('label', { for: 'f-loesung' }, q.type === 'choice' ? 'Lösung: Text der richtigen Option oder Buchstabe' : 'Lösung'),
+  fixed ? null : h('input', { id: 'f-loesung', maxlength: 500, value: q.answer, oninput: set('answer') }),
   h('label', { for: 'f-note' }, 'Erklärung (freiwillig)'),
   h('input', { id: 'f-note', maxlength: 500, value: q.note, oninput: set('note') }),
   h('label', { for: 'f-punkte' }, 'Punkte (leer = Standard)'),
@@ -413,7 +459,8 @@ function sammlungRows(s, listNode, noteNode) {
         r.kind === 'question' ? h('button', {
           'aria-label': `${r.title} bearbeiten`, title: 'Bearbeiten',
           onclick: () => {
-            editing = { ...r, optionText: (r.options ?? []).join('\n'), points: r.points ?? '' };
+            const lines = (r.options ?? []).map((o, i) => (r.values?.[i] ? `${o}=${r.values[i]}` : o));
+            editing = { ...r, optionText: lines.join('\n'), points: r.points ?? '' };
             editError = '';
             render();
           },
@@ -427,10 +474,6 @@ function sammlungRows(s, listNode, noteNode) {
 }
 
 function sammlung(s) {
-  const picker = h('input', {
-    type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,audio/*',
-    onchange: (e) => { uploadFiles([...e.target.files]); e.target.value = ''; },
-  });
   const zone = h('label', {
     class: 'ablage', for: 'dateien',
     ondragover: (e) => { e.preventDefault(); zone.classList.add('ueber'); },
@@ -445,7 +488,7 @@ function sammlung(s) {
   return [
     h('h2', {}, `Sammlung (${intros} Intros, ${library.length - intros} Fragen)`),
     h('p', { class: 'hinweis-text' }, 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“. Neue Intros landen auch im aktuellen Quiz.'),
-    picker, zone,
+    introPicker, zone,
     uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
     editing ? questionForm() : h('button', {
       class: 'knopf klein',
@@ -519,7 +562,11 @@ function render() {
   $('runde').textContent = state.round.n ? `Runde ${state.round.n}/${state.round.total}` : '';
   if (tab === 'spiel') {
     cols.regie.replaceChildren(...regie(state).filter(Boolean));
-    replaceUnlessEditing(cols.punkte, punkte(state));
+    // Die Punkteliste läuft immer weiter, auch wenn gerade ein Einstellungsfeld den Fokus hat.
+    const { list, rules } = punkte(state);
+    const a = document.activeElement;
+    if (!(a?.classList.contains('teamwahl'))) cols.punkteListe.replaceChildren(...list.filter(Boolean));
+    replaceUnlessEditing(cols.punkteRegeln, rules);
     replaceUnlessEditing(cols.ablauf, ablauf(state));
   }
   if (tab === 'intros') {

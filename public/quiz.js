@@ -174,7 +174,9 @@ export function scoreRows(players, { me = null, extra = null } = {}) {
     class: `zeile${p.id === me ? ' ich' : ''}${p.online ? '' : ' weg'}${p.locked ? ' gesperrt' : ''}`,
   },
   h('span', { class: 'platz' }, `${i + 1}.`),
-  h('span', { class: 'name' }, p.name, p.online ? null : h('span', { class: 'hinweis' }, ' offline')),
+  h('span', { class: 'name' }, p.name,
+    p.team ? h('span', { class: 'hinweis teamname' }, ` Team ${p.team}`) : null,
+    p.online ? null : h('span', { class: 'hinweis' }, ' offline')),
   extra?.(p),
   h('span', { class: 'punkte' }, String(p.score))));
 }

@@ -315,6 +315,10 @@ const HOST_COMMANDS = {
   deleteQuiz: (m) => game.deleteQuiz(m.id),
   rematch: () => game.rematch(),
   closeAnswers: () => game.closeAnswers(),
+  skipTurn: () => game.skipTurn(),
+  setTeam: (m) => game.setTeam(m.id, m.team),
+  randomTeams: (m) => game.randomTeams(m.count),
+  clearTeams: () => game.clearTeams(),
   setAward: (m) => game.setAward(m.id, m.points),
   finishReview: () => game.finishReview(),
   saveQuestion: (m, ws) => {
@@ -368,6 +372,7 @@ wss.on('connection', (ws, req) => {
     if (ws.pid && m?.t === 'buzz') return game.buzz(ws.pid);
     if (ws.pid && m?.t === 'loaded') return game.setLoaded(ws.pid, m.id);
     if (ws.pid && m?.t === 'answer') return game.submitAnswer(ws.pid, m.value);
+    if (ws.pid && m?.t === 'place') return game.placeItem(ws.pid, m.item, m.slot);
     if (ws.isHost && m?.t === 'cmd' && Object.hasOwn(HOST_COMMANDS, m.a)) HOST_COMMANDS[m.a](m, ws);
   });
   ws.on('close', () => {

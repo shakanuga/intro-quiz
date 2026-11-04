@@ -23,17 +23,29 @@ Ein Quiz kann Intros und alle Fragetypen beliebig mischen.
 | Auswahl | Alle wählen eine von bis zu 8 Optionen. | automatisch |
 | Schätzen | Alle geben eine Zahl ein. Die nächste gewinnt, bei Gleichstand alle Nächsten. | automatisch |
 | Sortieren | Alle bringen gemischte Einträge in die richtige Reihenfolge. | automatisch, nur exakt richtig zählt |
+| Ordnungshüter | Teams oder Einzelne ordnen abwechselnd Einträge in eine wachsende Liste ein. | automatisch |
 
 Fragen legst du im Host-Bereich einzeln an oder importierst sie als CSV. Aus jeder Datei wird ein gespeichertes Quiz mit dem Dateinamen. Eine Vorlage gibt es unter `/vorlage.csv` und im Host-Bereich.
 
 | Spalte | Inhalt |
 | --- | --- |
-| `typ` | Buzzer, Eintippen, Auswahl, Schätzen oder Sortieren |
+| `typ` | Buzzer, Eintippen, Auswahl, Schätzen, Sortieren oder Ordnungshüter |
 | `frage` | die Frage |
-| `optionen` | bei Auswahl und Sortieren, getrennt mit `\|`. Bei Sortieren in der richtigen Reihenfolge. |
+| `optionen` | bei Auswahl, Sortieren und Ordnungshüter, getrennt mit `\|`. Bei Sortieren und Ordnungshüter in der richtigen Reihenfolge, bei Ordnungshüter als `Eintrag=Wert`. |
 | `loesung` | die Lösung. Bei Auswahl der Text oder Buchstabe, bei Schätzen eine Zahl, bei Sortieren leer. |
 | `erklaerung` | erscheint freiwillig bei der Auflösung |
 | `punkte` | leer bedeutet der Standardwert |
+
+### Ordnungshüter
+
+Eine Liste enthält meist neun Einträge, die richtige Reihenfolge steht in der CSV-Datei. Ein zufälliger Eintrag liegt mit seinem Wert aus. Danach wählt, wer dran ist, einen Eintrag und seinen Platz in der Liste. Die App prüft den Zug selbst.
+
+- Ein Fehler ist frei, der falsche Eintrag landet an der richtigen Stelle. Beim zweiten Fehler scheidet man aus.
+- Teams legst du in der Punkteliste fest oder lost sie aus. Ohne Teams spielt jeder einzeln.
+- Im Teamspiel gewinnt, wer zuletzt übrig ist oder am Ende weniger Fehler hat, und nur der Sieger punktet. Bei Gleichstand gibt es keine Punkte.
+- Einzeln bekommt Platz 1 die vollen Punkte, jeder weitere Platz einen weniger. Mit 3 Punkten ergibt das 3, 2, 1.
+
+Das Format ist den „Ordnungshütern“ von PietSmiet nachempfunden. Dieses Projekt steht in keiner Verbindung zu PietSmiet.
 
 ## Quizze und Statistik
 

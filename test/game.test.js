@@ -476,3 +476,132 @@ test('Zahlen werden deutsch gelesen', () => {
   assert.equal(parseNumber('ca. 133 Tage'), 133);
   assert.equal(parseNumber('nichts'), null);
 });
+
+function rankRound(names = ['Anna', 'Ben', 'Cem', 'Dora'], teams = true, points = '') {
+  const q = ask({ type: 'Ordnungshüter', question: 'Klein nach groß', options: 'A=1|B=2|C=3|D=4|E=5|F=6', points });
+  const ctx = setup(names);
+  if (teams) ctx.ids.forEach((pid, i) => ctx.g.setTeam(pid, (i % 2) + 1));
+  const quiz = ctx.g.addQuestions([q], 'Liste');
+  ctx.g.loadQuiz(quiz.id);
+  ctx.g.start();
+  ctx.g.play();
+  return { ...ctx, q };
+}
+// Spielt den Zug des aktiven Teams richtig oder falsch aus.
+function move(g, right) {
+  const v = g.view().rank;
+  const pid = v.turnMembers[0];
+  const item = v.remaining[0];
+  const letters = v.placed.map((p) => p.text);
+  const slot = letters.filter((t) => t < item.text).length;
+  const wrong = slot === 0 ? letters.length : 0;
+  return g.placeItem(pid, item.id, right ? slot : wrong);
+}
+
+test('Ordnungshüter: ein Startwert liegt mit Wert aus, nur wer dran ist, darf einordnen', () => {
+  const { g } = rankRound();
+  assert.equal(g.phase, 'sorting');
+  const v = g.view().rank;
+  assert.equal(v.placed.length, 1);
+  assert.ok(v.placed[0].value);
+  assert.equal(v.remaining.length, 5);
+  assert.ok(!JSON.stringify(v.remaining).includes('"value"'));
+  const other = v.units.find((u) => u.name !== v.turn).members[0];
+  assert.equal(g.placeItem(other, v.remaining[0].id, 0), false);
+});
+
+test('Ordnungshüter: richtige Züge wechseln das Team, die Liste bleibt sortiert', () => {
+  const { g } = rankRound();
+  const first = g.view().rank.turn;
+  assert.ok(move(g, true));
+  assert.notEqual(g.view().rank.turn, first);
+  const texts = g.view().rank.placed.map((p) => p.text);
+  assert.deepEqual(texts, [...texts].sort());
+  assert.equal(g.view().rank.last.right, true);
+});
+
+test('Ordnungshüter: im Teamspiel gewinnt beim zweiten Fehler das Gegnerteam', () => {
+  const { g, ids } = rankRound();
+  const first = g.view().rank.turn;
+  move(g, false);
+  assert.equal(g.phase, 'sorting');
+  assert.equal(g.view().rank.units.find((u) => u.name === first).errors, 1);
+  move(g, true);
+  move(g, false);
+  assert.equal(g.phase, 'reveal');
+  const winners = g.results.find((r) => r.points > 0);
+  assert.notEqual(winners.name, first);
+  assert.equal(winners.points, 3);
+  const team = g.players.get(ids[0]).team === 1 ? 'Team 1' : 'Team 2';
+  assert.equal(g.players.get(ids[0]).score, winners.name === team ? 3 : 0);
+  assert.equal(g.view().rank.placed.length, 6);
+});
+
+test('Ordnungshüter: am Ende entscheidet die Fehlerzahl, Gleichstand gibt keine Punkte', () => {
+  const a = rankRound();
+  const first = a.g.view().rank.turn;
+  move(a.g, false);
+  while (a.g.phase === 'sorting') move(a.g, true);
+  assert.notEqual(a.g.results[0].name, first);
+  assert.equal(a.g.results[0].points, 3);
+
+  const b = rankRound();
+  while (b.g.phase === 'sorting') move(b.g, true);
+  assert.deepEqual(b.g.results.map((r) => r.points), [0, 0]);
+});
+
+test('Ordnungshüter einzeln: Platzpunkte 3, 2, 1 und Ausscheiden', () => {
+  const { g } = rankRound(['Anna', 'Ben', 'Cem'], false);
+  assert.equal(g.rank.teamMode, false);
+  const out = g.view().rank.turn;
+  move(g, false); move(g, true); move(g, true);
+  move(g, false);
+  assert.equal(g.rank.units.find((u) => u.name === out).out, 1);
+  const before = g.view().rank.turn;
+  assert.notEqual(before, out);
+  while (g.phase === 'sorting') move(g, true);
+  assert.deepEqual(g.results.map((r) => r.points), [3, 3, 1].slice(0, 3));
+});
+
+test('Ordnungshüter einzeln: mit Punkten 2 gilt die Variante 2, 1, 0', () => {
+  const { g } = rankRound(['Anna', 'Ben', 'Cem'], false, '2');
+  const first = g.view().rank.turn;
+  move(g, false); move(g, true); move(g, true);
+  const second = g.view().rank.turn;
+  assert.equal(second, first);
+  move(g, false);
+  while (g.phase === 'sorting') move(g, true);
+  assert.equal(g.results.at(-1).points, 0);
+  assert.equal(g.results[0].points, 2);
+});
+
+test('Ordnungshüter: Zug überspringen und Teams auslosen', () => {
+  const { g } = rankRound();
+  const first = g.view().rank.turn;
+  g.skipTurn();
+  assert.notEqual(g.view().rank.turn, first);
+  g.randomTeams(2);
+  assert.equal([...g.players.values()].filter((p) => p.team === 1).length, 2);
+  g.clearTeams();
+  assert.ok([...g.players.values()].every((p) => p.team === null));
+});
+
+test('Ordnungshüter: Spielstand überlebt einen Neustart', () => {
+  const { g } = rankRound();
+  move(g, true);
+  const copy = new Game({ saved: JSON.parse(JSON.stringify(g)) });
+  assert.equal(copy.phase, 'sorting');
+  assert.equal(copy.view().rank.placed.length, 2);
+  assert.equal([...copy.players.values()][0].team, 1);
+});
+
+test('Ordnungshüter braucht mindestens zwei Parteien', () => {
+  const { g } = rankRound(['Anna', 'Ben'], false);
+  assert.equal(g.phase, 'sorting');
+  const solo = setup(['Anna']);
+  const quiz = solo.g.addQuestions([ask({ type: 'Ordnungshüter', question: 'Q', options: 'A|B|C' })], 'L');
+  solo.g.loadQuiz(quiz.id);
+  solo.g.start();
+  assert.equal(solo.g.play(), false);
+  assert.equal(solo.g.phase, 'ready');
+});
