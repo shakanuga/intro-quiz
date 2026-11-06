@@ -128,6 +128,7 @@ export class Engine {
     this.last = state;
     const id = state.round.audio;
     if (id && !this.has(id)) this.load(id);
+    else if (state.round.preload) this.load(state.round.preload);
     const key = state.playing && id ? `${id}|${state.playing.from}|${state.playing.at}` : null;
     if (key !== this.key) { this.stop(); this.key = key; this.done = false; }
     if (!key || this.src || this.done || !this.unlocked) return;

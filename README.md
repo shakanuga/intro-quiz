@@ -132,6 +132,14 @@ Mitspielen geht nur mit dem Spielcode, die Steuerung ist durch das Host-Passwort
 
 ## Intros
 
+Zu jedem Intro kannst du ein Cover und eine Auflösungs-Version hochladen. Zugeordnet wird über den Dateinamen:
+
+- `Friends.mp3` ist das Intro, der Dateiname ist die Lösung.
+- `Friends.jpg` (oder PNG, WEBP) ist das Cover. Nach dem Auflösen sehen es alle groß auf dem Bildschirm.
+- `Friends (Auflösung).mp3` ist die Version, die du nach dem Auflösen abspielen kannst, zum Beispiel mit Gesang, wenn das Intro selbst nur instrumental ist.
+
+Lade alles zusammen hoch, die Reihenfolge ist egal. Nach dem Auflösen kannst du das Intro zu Ende spielen, von vorne starten oder die Auflösungs-Version abspielen. Spieler bekommen Cover und Auflösungs-Version erst nach dem Auflösen, vorher lassen sie sich nicht abrufen.
+
 Mit ♪ neben einem Intro hörst du als Host rein, zum Beispiel um zu prüfen, ob gleich am Anfang der Serienname fällt. Die Spieler hören davon nichts.
 
 Der Dateiname wird zur Lösung, aus `Die Simpsons.mp3` wird also „Die Simpsons“. Erlaubt sind MP3, M4A, OGG, OPUS, WAV und FLAC mit bis zu 40 MB. MP3 mit 128 kbit/s reicht aus. Dieses Repo enthält keine Intros. Achte bei eigenen Dateien auf die Rechte, besonders wenn deine Instanz öffentlich erreichbar ist.

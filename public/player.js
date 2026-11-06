@@ -42,7 +42,7 @@ const link = new Link({
       showRulesOnce();
       // Auch ein schon geladenes Intro melden, etwa wenn die Runde neu startet.
       const self = state.players.find((p) => p.id === state.me);
-      if (self && !self.loaded && engine.has(state.round.audio)) link.send({ t: 'loaded', id: state.round.audio });
+      if (self && !self.loaded && !state.round.audio?.includes('.') && engine.has(state.round.audio)) link.send({ t: 'loaded', id: state.round.audio });
       render();
     }
   },
@@ -276,6 +276,10 @@ const views = {
     return h('div', { class: 'tafelbild aufloesung' },
       state.round.question ? question() : null,
       h('p', { class: 'vorzeile' }, lead),
+      state.round.cover ? h('img', {
+        class: 'cover-bild', alt: `Cover von ${state.round.title ?? ''}`,
+        src: `/cover/${state.round.audio.split('.')[0]}?k=${encodeURIComponent(token ?? '')}`,
+      }) : null,
       state.rank ? placedList(state.rank, null) : state.match ? pairList(state.match) : h('h1', {}, state.round.title ?? ''),
       state.round.note ? h('p', {}, state.round.note) : null,
       results.length ? h('ul', { class: 'ergebnisse' }, results.map((r) => h('li', { class: r.points > 0 ? 'treffer-zeile' : '' },

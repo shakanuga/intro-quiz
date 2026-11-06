@@ -806,3 +806,37 @@ test('Intro-Quiz aus Titeln: Reihenfolge bleibt, fehlende Titel werden gemeldet'
   g.deleteQuiz(quiz.id);
   assert.equal(g.library.length, 2);
 });
+
+test('Cover und Auflösungs-Version erst nach dem Auflösen sichtbar', () => {
+  const { g, ids, tick } = setup();
+  assert.equal(g.findIntro('friends').id, 'b');
+  assert.equal(g.findIntro('Gibt es nicht'), null);
+  g.setExtra('a', 'cover', '.jpg');
+  g.setExtra('a', 'full', '.mp3');
+  playing(g, tick);
+  let v = g.view();
+  assert.equal(v.round.cover, false);
+  assert.equal(v.round.hasFull, false);
+  assert.equal(v.round.preload, null);
+  assert.equal(g.hostView().round.cover, true);
+  g.buzz(ids[0]);
+  g.correct();
+  v = g.view();
+  assert.equal(v.round.cover, true);
+  assert.equal(v.round.preload, 'a.full');
+  assert.ok(g.replay('full'));
+  v = g.view();
+  assert.equal(v.round.audio, 'a.full');
+  assert.equal(v.replay, 'full');
+  assert.equal(v.round.preload, null);
+  assert.ok(g.playing);
+  assert.ok(g.stopOutro());
+  assert.equal(g.playing, null);
+  assert.ok(g.replay('intro'));
+  assert.equal(g.view().round.audio, 'a');
+  assert.equal(g.pos, 0);
+  g.next();
+  assert.equal(g.view().round.audio, 'b');
+  assert.equal(g.replay('full'), false); // Friends hat keine Auflösungs-Version
+  assert.equal(g.libraryView().find((r) => r.id === 'a').full, true);
+});

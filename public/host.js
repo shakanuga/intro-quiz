@@ -73,7 +73,7 @@ function boot(gesture) {
   engine = new Engine({
     link,
     onLoaded(id, buffer) {
-      cmd('duration', { id, ms: buffer.duration * 1000 });
+      if (!id.includes('.')) cmd('duration', { id, ms: buffer.duration * 1000 });
       render();
     },
     onUnlock() { render(); },
@@ -157,10 +157,16 @@ function actions(s) {
     case 'playing': return [button('Pause', 'pause', '', ' '), button('Auflösen', 'reveal')];
     case 'paused': return [button('Weiter abspielen', 'resume', 'gelb', ' '), button('Auflösen', 'reveal')];
     case 'judging': return [button('Richtig', 'correct', 'gruen', 'r'), button('Falsch', 'wrong', 'rot', 'f')];
-    case 'reveal': return [
-      button(lastRound ? 'Ergebnis zeigen' : 'Nächste Runde', 'next', 'gelb', 'n'),
-      s.outro || s.round.kind === 'question' ? null : button('Intro zu Ende spielen', 'playOn'),
-    ];
+    case 'reveal': {
+      const intro = s.round.kind === 'intro';
+      return [
+        button(lastRound ? 'Ergebnis zeigen' : 'Nächste Runde', 'next', 'gelb', 'n'),
+        intro && !s.outro ? button('Intro zu Ende spielen', 'playOn') : null,
+        intro ? h('button', { class: 'knopf', onclick: () => cmd('replay', { kind: 'intro' }) }, 'Intro von vorne') : null,
+        intro && s.round.hasFull ? h('button', { class: 'knopf', onclick: () => cmd('replay', { kind: 'full' }) }, 'Auflösungs-Version abspielen') : null,
+        intro && s.playing ? button('Musik stoppen', 'stopOutro') : null,
+      ];
+    }
     default: return [];
   }
 }
@@ -243,6 +249,8 @@ function regie(s) {
     s.round.question ? h('p', { class: 'frage' }, s.round.question)
       : s.round.title ? h('h1', {}, s.round.title) : h('h1', {}, s.phase === 'finished' ? (s.players[0]?.name ?? 'Niemand') : MODE_NAMES[s.mode]),
     s.round.question && s.phase !== 'finished' ? questionPanel(s) : null,
+    s.phase === 'reveal' && s.round.cover ? h('img', { class: 'cover-host', src: `/cover/${s.currentId}`, alt: `Cover von ${s.round.title}` }) : null,
+    s.phase === 'reveal' && s.playing ? h('p', { class: 'geladen' }, s.replay === 'full' ? 'Läuft: Auflösungs-Version' : 'Läuft: Intro') : null,
     s.phase === 'asking' && s.round.type !== 'buzzer' ? h('p', { class: 'geladen' }, `${online.filter((p) => p.answered).length} von ${online.length} Spielern haben geantwortet`) : null,
     s.phase === 'review' ? reviewPanel(s) : null,
     s.buzzer ? h('p', { class: 'wer' }, `${s.buzzer.name} antwortet`) : null,
@@ -310,14 +318,19 @@ function punkte(s) {
 }
 
 // ---------- Intros ----------
+// Erst die Intros, danach Cover und Auflösungs-Versionen, die sich auf sie beziehen.
+const isExtra = (name) => /\.(jpe?g|png|webp|gif)$/i.test(name) || /[([]\s*(auflösung|aufloesung|original|voll|full)\s*[)\]]\s*\.[a-z0-9]+$/i.test(name);
 async function uploadFiles(files) {
-  for (const file of files) {
+  const sorted = [...files].sort((a, b) => isExtra(a.name) - isExtra(b.name));
+  for (const file of sorted) {
     uploads = [`${file.name}: wird hochgeladen …`, ...uploads.filter((u) => !u.startsWith(file.name))].slice(0, 6);
     render();
     let msg = `${file.name}: hochgeladen`;
     try {
       const r = await fetch(`/api/host/intros?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
-      if (!r.ok) msg = (await r.json().catch(() => ({}))).error ?? `${file.name}: fehlgeschlagen`;
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) msg = body.error ?? `${file.name}: fehlgeschlagen`;
+      else if (body.kind) msg = `${file.name}: als ${body.kind === 'cover' ? 'Cover' : 'Auflösungs-Version'} für „${body.title}“ gespeichert`;
     } catch { msg = `${file.name}: Die Verbindung ist abgebrochen.`; }
     uploads = [msg, ...uploads.filter((u) => !u.startsWith(file.name))].slice(0, 6);
     render();
@@ -348,6 +361,7 @@ function ablauf(s) {
         onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
       }),
       h('span', { class: 'dauer' }, r.kind === 'question' ? TYPE_NAMES[r.type] : r.duration ? clock(r.duration) : ''),
+      extraBadges(r),
       h('span', { class: 'mini' },
         s.phase !== 'lobby' && r.id !== s.currentId
           ? h('button', { 'aria-label': `Zu ${r.title} springen`, title: 'Zu dieser Runde springen', onclick: () => cmd('goTo', { id: r.id }) }, '▶') : null,
@@ -367,7 +381,7 @@ let preview = null;
 function syncPreviewButtons() {
   for (const b of document.querySelectorAll('[data-preview]')) {
     const on = preview?.id === b.dataset.preview;
-    b.textContent = on ? '■' : '♪';
+    b.textContent = on ? '■' : b.dataset.preview.endsWith('.full') ? '♫' : '♪';
     b.title = on ? 'Reinhören stoppen' : 'Reinhören (nur bei dir)';
     b.classList.toggle('hoert', on);
   }
@@ -388,6 +402,14 @@ function togglePreview(id) {
   audio.play().catch(() => { if (preview?.audio === audio) stopPreview(); });
   syncPreviewButtons();
 }
+// Zeigt an, ob ein Intro ein Cover oder eine Auflösungs-Version hat.
+const extraBadges = (r) => (r.kind === 'question' || (!r.cover && !r.full) ? null : h('span', { class: 'mini extras' },
+  r.cover ? h('a', { class: 'extra', href: `/cover/${r.id}`, target: '_blank', rel: 'noopener', title: 'Cover ansehen', 'aria-label': `Cover von ${r.title} ansehen` }, '▣') : null,
+  r.full ? h('button', {
+    'data-preview': `${r.id}.full`, class: preview?.id === `${r.id}.full` ? 'hoert' : '',
+    title: 'Auflösungs-Version reinhören', 'aria-label': `Auflösungs-Version von ${r.title} reinhören`,
+    onclick: () => togglePreview(`${r.id}.full`),
+  }, preview?.id === `${r.id}.full` ? '■' : '♫') : null));
 const previewButton = (r) => (r.kind === 'question' ? null : h('button', {
   'data-preview': r.id, 'aria-label': `In ${r.title} reinhören`,
   class: preview?.id === r.id ? 'hoert' : '', title: preview?.id === r.id ? 'Reinhören stoppen' : 'Reinhören (nur bei dir)',
@@ -506,7 +528,7 @@ function quizze(s) {
 // Die Dateiauswahl bleibt dasselbe Element: Würde sie neu gezeichnet, während der
 // Dialog offen ist, ginge die Auswahl verloren.
 const introPicker = h('input', {
-  type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,audio/*',
+  type: 'file', id: 'dateien', multiple: true, class: 'versteckt', accept: '.mp3,.m4a,.ogg,.opus,.wav,.flac,.jpg,.jpeg,.png,.webp,audio/*,image/*',
   onchange: (e) => { uploadFiles([...e.target.files]); e.target.value = ''; },
 });
 const csvPicker = h('input', {
@@ -606,6 +628,7 @@ function sammlungRows(s, listNode, noteNode) {
       }),
       r.played ? h('span', { class: 'gespielt', title: `Schon ${r.played}-mal gespielt` }, `${r.played}× gespielt`) : null,
       h('span', { class: 'dauer' }, r.kind === 'question' ? TYPE_NAMES[r.type] : r.duration ? clock(r.duration) : ''),
+      extraBadges(r),
       h('span', { class: 'mini' },
         h('button', {
           'aria-label': `${r.title} löschen`, title: 'Löschen',
@@ -631,6 +654,7 @@ function sammlung(s) {
   return [
     h('h2', {}, `Alle Intros (${count})`),
     h('p', { class: 'hinweis-text' }, 'Der Dateiname wird zur Lösung, zum Beispiel „Die Simpsons.mp3“. Neue Intros landen auch im aktuellen Quiz.'),
+    h('p', { class: 'hinweis-text' }, 'Für die Auflösung: „Die Simpsons.jpg“ wird das Cover, „Die Simpsons (Auflösung).mp3“ die Version, die du danach abspielen kannst, etwa mit Gesang.'),
     introPicker, zone,
     uploads.length ? h('ul', { class: 'meldungen' }, uploads.map((u) => h('li', {}, u))) : null,
     count ? h('input', { id: 'suche', type: 'search', placeholder: 'Suchen', 'aria-label': 'Intros durchsuchen', value: search, oninput: (e) => { search = e.target.value; refresh(); } }) : null,

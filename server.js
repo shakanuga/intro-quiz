@@ -90,8 +90,15 @@ const MIME = {
   '.svg': 'image/svg+xml', '.csv': 'text/csv; charset=utf-8',
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.opus': 'audio/ogg',
   '.wav': 'audio/wav', '.flac': 'audio/flac',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif',
 };
 const AUDIO_EXT = new Set(['.mp3', '.m4a', '.ogg', '.opus', '.wav', '.flac']);
+const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+const MAX_IMAGE = 10 * 1024 * 1024;
+// "Friends (Auflösung).mp3" ist die Version, die nach dem Auflösen laufen kann.
+const FULL_SUFFIX = /\s*[([]\s*(auflösung|aufloesung|original|voll|full)\s*[)\]]\s*$/i;
+// Zusatzdateien liegen neben dem Intro: <id>.cover.jpg und <id>.full.mp3
+const extraFile = (entry, kind) => path.join(INTRO_DIR, `${entry.id}.${kind}${entry[kind]}`);
 const PAGES = { '/': 'index.html', '/host': 'host.html' };
 
 function securityHeaders(req, res) {
@@ -158,61 +165,105 @@ function looksLikeAudio(b) {
     || b.subarray(4, 8).toString('latin1') === 'ftyp'
     || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0);
 }
+function looksLikeImage(b) {
+  return (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
+    || b.subarray(0, 4).toString('latin1') === '\x89PNG'
+    || (b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP')
+    || b.subarray(0, 4).toString('latin1') === 'GIF8';
+}
 function titleFromFile(name) {
   return path.basename(name, path.extname(name)).replace(/[_]+/g, ' ').replace(/^\s*\d+\s*[-.)]\s*/, '').trim() || 'Ohne Titel';
 }
 
 async function upload(req, res, url) {
-  const name = path.basename(url.searchParams.get('name') || '');
+  const name = path.basename(url.searchParams.get('name') || '').normalize('NFC');
   const ext = path.extname(name).toLowerCase();
-  if (!AUDIO_EXT.has(ext)) return send(res, 415, { error: `${name}: Erlaubt sind MP3, M4A, OGG, OPUS, WAV und FLAC.` });
-  if (Number(req.headers['content-length'] || 0) > MAX_UPLOAD) {
+  const image = IMAGE_EXT.has(ext);
+  if (!AUDIO_EXT.has(ext) && !image) {
     req.resume();
-    return send(res, 413, { error: `${name}: Die Datei ist größer als 40 MB.` });
+    return send(res, 415, { error: `${name}: Erlaubt sind MP3, M4A, OGG, OPUS, WAV, FLAC und als Cover JPG, PNG, WEBP.` });
+  }
+  const limit = image ? MAX_IMAGE : MAX_UPLOAD;
+  const tooBig = `${name}: Die Datei ist größer als ${limit / 1024 / 1024} MB.`;
+  if (Number(req.headers['content-length'] || 0) > limit) { req.resume(); return send(res, 413, { error: tooBig }); }
+  // Cover und Auflösungs-Version gehören zu einem Intro mit gleichem Titel.
+  let target = null;
+  let kind = null;
+  const base = titleFromFile(name);
+  if (image || FULL_SUFFIX.test(base)) {
+    kind = image ? 'cover' : 'full';
+    const title = base.replace(FULL_SUFFIX, '');
+    target = game.findIntro(title);
+    if (!target) {
+      req.resume();
+      return send(res, 404, { error: `${name}: Kein Intro „${title}“ gefunden. Lade zuerst ${title}.mp3 hoch.` });
+    }
   }
   const rid = id();
   const tmp = path.join(INTRO_DIR, `.upload-${rid}`);
-  const final = path.join(INTRO_DIR, rid + ext);
   let size = 0;
   let head = Buffer.alloc(0);
   const counter = new Transform({
     transform(chunk, _enc, cb) {
       size += chunk.length;
       if (head.length < 12) head = Buffer.concat([head, chunk]).subarray(0, 12);
-      cb(size > MAX_UPLOAD ? new Error('too large') : null, chunk);
+      cb(size > limit ? new Error('too large') : null, chunk);
     },
   });
   try {
     await pipeline(req, counter, fs.createWriteStream(tmp));
-    if (!looksLikeAudio(head)) throw new Error('not audio');
-    await fs.promises.rename(tmp, final);
+    if (image ? !looksLikeImage(head) : !looksLikeAudio(head)) throw new Error('wrong type');
+    if (kind) {
+      const old = target[kind] ? extraFile(target, kind) : null;
+      const file = path.join(INTRO_DIR, `${target.id}.${kind}${ext}`);
+      await fs.promises.rename(tmp, file);
+      if (old && old !== file) await fs.promises.unlink(old).catch(() => {});
+      game.setExtra(target.id, kind, ext);
+      return send(res, 200, { id: target.id, kind, title: target.title });
+    }
+    await fs.promises.rename(tmp, path.join(INTRO_DIR, rid + ext));
   } catch (e) {
     await fs.promises.unlink(tmp).catch(() => {});
-    if (e.message === 'too large') return send(res, 413, { error: `${name}: Die Datei ist größer als 40 MB.` });
-    if (e.message === 'not audio') return send(res, 415, { error: `${name}: Das ist keine Audiodatei.` });
+    if (e.message === 'too large') return send(res, 413, { error: tooBig });
+    if (e.message === 'wrong type') return send(res, 415, { error: `${name}: Das ist keine ${image ? 'Bilddatei' : 'Audiodatei'}.` });
     return send(res, 500, { error: `${name}: Das Hochladen ist fehlgeschlagen.` });
   }
-  game.addIntro({ id: rid, ext, title: titleFromFile(name), size });
+  game.addIntro({ id: rid, ext, title: base, size });
   send(res, 200, { id: rid });
 }
 
-function serveAudio(req, res, rid, url) {
+// Spieler bekommen das Cover und die Auflösungs-Version erst, wenn die Runde aufgelöst ist.
+function playerMay(req, url, rid, needReveal) {
+  if (isHost(req)) return true;
   const token = req.headers['x-player-token'] || url.searchParams.get('k') || '';
-  const host = isHost(req);
-  const entry = game.library.find((r) => r.id === rid);
-  if (!entry?.ext || !/^[a-f0-9]+$/.test(rid)) return send(res, 404, { error: 'Nicht gefunden' });
-  // Spieler bekommen nur das Intro der laufenden Runde.
-  if (!host && !(game.validToken(token) && game.currentId === rid)) return send(res, 403, { error: 'Kein Zugriff' });
-  const file = path.join(INTRO_DIR, rid + entry.ext);
+  return game.validToken(token) && game.currentId === rid && (!needReveal || game.phase === 'reveal');
+}
+function serveFile(res, file, ext) {
   fs.stat(file, (err, st) => {
     if (err) return send(res, 404, { error: 'Die Datei fehlt.' });
     res.writeHead(200, {
-      'Content-Type': MIME[entry.ext] || 'application/octet-stream',
+      'Content-Type': MIME[ext] || 'application/octet-stream',
       'Content-Length': st.size,
       'Cache-Control': 'private, no-store',
     });
     fs.createReadStream(file).pipe(res);
   });
+}
+function serveCover(req, res, rid, url) {
+  const entry = game.library.find((r) => r.id === rid);
+  if (!entry?.cover || !/^[a-f0-9]+$/.test(rid)) return send(res, 404, { error: 'Nicht gefunden' });
+  if (!playerMay(req, url, rid, true)) return send(res, 403, { error: 'Kein Zugriff' });
+  serveFile(res, extraFile(entry, 'cover'), entry.cover);
+}
+
+function serveAudio(req, res, key, url) {
+  const [rid, kind] = key.split('.');
+  const entry = game.library.find((r) => r.id === rid);
+  if (!entry?.ext || !/^[a-f0-9]+$/.test(rid) || (kind && (kind !== 'full' || !entry.full))) return send(res, 404, { error: 'Nicht gefunden' });
+  // Spieler bekommen nur das Intro der laufenden Runde.
+  if (!playerMay(req, url, rid, !!kind)) return send(res, 403, { error: 'Kein Zugriff' });
+  if (kind) return serveFile(res, extraFile(entry, 'full'), entry.full);
+  serveFile(res, path.join(INTRO_DIR, rid + entry.ext), entry.ext);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -225,6 +276,7 @@ const server = http.createServer(async (req, res) => {
       if (p === '/api/host/me') return send(res, isHost(req) ? 200 : 401, { ok: isHost(req) });
       if (PAGES[p]) return serveStatic(req, res, PAGES[p]);
       if (p.startsWith('/audio/')) return serveAudio(req, res, p.slice(7), url);
+      if (p.startsWith('/cover/')) return serveCover(req, res, p.slice(7), url);
       if (/^\/[a-z-]+\.(css|js|csv)$/.test(p) || /^\/fonts\/[\w.-]+$/.test(p)) return serveStatic(req, res, p.slice(1));
       return send(res, 404, { error: 'Nicht gefunden' });
     }
@@ -370,8 +422,17 @@ const HOST_COMMANDS = {
   remove: (m) => {
     const gone = game.remove(m.id);
     if (gone?.ext) fs.unlink(path.join(INTRO_DIR, gone.id + gone.ext), () => {});
+    for (const kind of ['cover', 'full']) if (gone?.[kind]) fs.unlink(extraFile(gone, kind), () => {});
     return !!gone;
   },
+  removeExtra: (m) => {
+    const entry = game.library.find((r) => r.id === m.id);
+    if (!entry || !['cover', 'full'].includes(m.kind) || !entry[m.kind]) return false;
+    fs.unlink(extraFile(entry, m.kind), () => {});
+    return game.setExtra(entry.id, m.kind, null);
+  },
+  replay: (m) => game.replay(m.kind),
+  stopOutro: () => game.stopOutro(),
 };
 
 wss.on('connection', (ws, req) => {

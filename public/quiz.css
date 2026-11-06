@@ -364,3 +364,13 @@ select, textarea {
 .regeln-kasten summary { cursor: pointer; color: var(--gelb); font-size: 22px; }
 .spieler .tipp { margin-top: 8px; }
 .mini button.hoert { background: var(--gelb); color: var(--schwarz); }
+.cover-bild {
+  display: block; margin: 8px auto 4px;
+  width: auto; max-width: min(640px, 100%); max-height: 46dvh; object-fit: contain;
+  border: 3px solid var(--gelb); box-shadow: 8px 8px 0 var(--tief); background: var(--schwarz);
+}
+.cover-host { display: block; max-width: 100%; max-height: 220px; object-fit: contain; border: 2px solid var(--gelb); margin-top: 8px; }
+.extras .extra {
+  display: inline-grid; place-items: center; min-width: 30px; height: 30px;
+  color: var(--weiss); text-decoration: none; border: 1px solid var(--cyan); background: var(--schwarz);
+}
