@@ -1,4 +1,5 @@
 import { h, clock, answerText, Link, Engine, scoreRows } from './quiz.js';
+import { MODE_NAMES, RulesDialog } from './regeln.js';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -17,9 +18,9 @@ let openQuiz = null;
 let imports = [];
 let editing = null;
 let editError = '';
+const rulesDialog = new RulesDialog({ host: true });
 const LIST_LIMIT = 300;
 const TABS = { spiel: 'Spiel', intros: 'Inhalte', statistik: 'Statistik' };
-const MODE_NAMES = { intro: 'Intro-Quiz', fragen: '50 Fragen', ordnung: 'Ordnungshüter', zuordnen: 'Zuordnen' };
 const MODE_TYPES = { fragen: ['buzzer', 'text', 'choice', 'estimate', 'order'], ordnung: ['rank'], zuordnen: ['match'] };
 const TYPE_NAMES = { buzzer: 'Buzzer', choice: 'Auswahl', text: 'Eintippen', estimate: 'Schätzen', order: 'Sortieren', rank: 'Ordnungshüter', match: 'Zuordnen' };
 
@@ -134,7 +135,9 @@ function actions(s) {
     case 'lobby':
       return [s.playlist.length
         ? button('Spiel starten', 'start', 'gelb')
-        : h('p', { class: 'hinweis-text' }, 'Füge unter „Inhalte“ etwas hinzu oder lade ein gespeichertes Quiz.')];
+        : h('p', { class: 'hinweis-text' }, 'Füge unter „Inhalte“ etwas hinzu oder lade ein gespeichertes Quiz.'),
+        h('button', { class: 'knopf', onclick: () => rulesDialog.open() }, 'Regeln ansehen'),
+        h('p', { class: 'hinweis-text' }, 'Die Spieler sehen die Regeln automatisch, wenn sie beitreten.')];
     case 'ready':
       if (['rank', 'match'].includes(s.round.type)) {
         return s.players.filter((p) => p.online).length > 1
@@ -655,6 +658,7 @@ function replaceUnlessEditing(node, kids) {
 
 function render() {
   if (!state || !cols) return;
+  rulesDialog.update(state.mode, state.settings);
   $('runde').textContent = state.round.n ? `Runde ${state.round.n}/${state.round.total}` : '';
   if (tab === 'spiel') {
     cols.regie.replaceChildren(...regie(state).filter(Boolean));
@@ -676,7 +680,7 @@ function render() {
 }
 
 addEventListener('keydown', (e) => {
-  if (!state || tab !== 'spiel' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!state || tab !== 'spiel' || rulesDialog.isOpen || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '')) return;
   const key = e.key.toLowerCase();
   const btn = document.querySelector(`#regie [data-key="${CSS.escape(key)}"]`);

@@ -10,6 +10,8 @@ Ein Quiz mit Buzzer im Browser und mehreren Spielmodi, gemacht für Runden über
 4. Wer buzzert, stoppt den Ton bei allen und antwortet im Sprachchat.
 5. Der Host wertet mit „Richtig“ oder „Falsch“. Bei „Richtig“ wird die Lösung aufgedeckt, bei „Falsch“ läuft das Intro weiter.
 
+Beim Beitreten sehen die Spieler die Regeln des aktuellen Spielmodus. Sie passen sich an die Einstellungen an, etwa Punkte, Antwortzeit oder erneutes Buzzern. Wer mitten im Spiel dazukommt, bekommt sie einmal als Fenster. Host und Spieler öffnen sie jederzeit über „Regeln“ oben rechts.
+
 Die Spieler buzzern per Knopf oder Leertaste. Der Host steuert auch per Tastatur: Leertaste für Abspielen und Pause, `R` für richtig, `F` für falsch und `N` für die nächste Runde.
 
 ## Fragetypen

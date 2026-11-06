@@ -1,4 +1,5 @@
 import { h, store, clock, answerText, Link, Engine, scoreRows } from './quiz.js';
+import { MODE_NAMES, RulesDialog, rulesContent } from './regeln.js';
 
 const $ = (id) => document.getElementById(id);
 let token = store.get('quiz_token');
@@ -6,6 +7,7 @@ let state = null;
 let mode = null;
 let joinError = '';
 let lastFx = null;
+const rules = new RulesDialog();
 
 const link = new Link({
   onOpen() { if (token) link.send({ t: 'hello', token }); else render(); },
@@ -36,6 +38,8 @@ const link = new Link({
       lastFx = m.state.fx.n;
       state = m.state;
       engine.sync(state);
+      rules.update(state.mode, state.settings);
+      showRulesOnce();
       // Auch ein schon geladenes Intro melden, etwa wenn die Runde neu startet.
       const self = state.players.find((p) => p.id === state.me);
       if (self && !self.loaded && engine.has(state.round.audio)) link.send({ t: 'loaded', id: state.round.audio });
@@ -53,7 +57,6 @@ const engine = new Engine({
 });
 engine.volume(Number(store.get('quiz_vol') ?? 0.8));
 
-const MODE_NAMES = { intro: 'Intro-Quiz', fragen: '50 Fragen', ordnung: 'Ordnungshüter', zuordnen: 'Zuordnen' };
 const buzzerOpen = () => mode === 'buzzer' || mode?.startsWith('fragebuzzer');
 const question = () => h('p', { class: 'frage' }, state.round.question ?? '');
 
@@ -66,8 +69,23 @@ function buzz() {
   setTimeout(() => b?.classList.remove('gedrueckt'), 220);
 }
 addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && !e.repeat && buzzerOpen()) { e.preventDefault(); buzz(); }
+  if (e.code === 'Space' && !e.repeat && buzzerOpen() && !rules.isOpen) { e.preventDefault(); buzz(); }
 });
+
+// Wer mitten im Spiel dazukommt, sieht die Regeln einmal als Fenster.
+// In der Wartezeit stehen sie ohnehin auf dem Bildschirm.
+function showRulesOnce() {
+  const seen = `${token}:${state.mode}`;
+  if (store.get('quiz_regeln') === seen) return;
+  store.set('quiz_regeln', seen);
+  if (state.phase !== 'lobby') rules.open();
+}
+
+function lobbyRules() {
+  return h('details', { class: 'regeln-kasten', open: true },
+    h('summary', {}, `So wird ${MODE_NAMES[state.mode]} gespielt`),
+    h('div', { id: 'lobbyregeln', class: 'regeltext' }));
+}
 
 function eq() {
   return h('div', { class: 'eq', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5, 6, 7].map(() => h('i')));
@@ -167,7 +185,9 @@ const views = {
     h('p', { class: 'vorzeile' }, `Spielmodus: ${MODE_NAMES[state.mode]}`),
     h('p', {}, state.mode === 'intro' ? 'Gleich geht es los. Prüfe kurz deinen Ton.' : 'Gleich geht es los.'),
     h('button', { class: 'knopf', onclick: () => engine.effect('test') }, 'Ton testen'),
-    volumeControl()),
+    volumeControl(),
+    lobbyRules(),
+    h('p', { class: 'tipp' }, 'Die Regeln findest du auch während des Spiels oben unter „Regeln“.')),
   ready: () => {
     if (state.round.kind === 'question') return waiting(`Runde ${state.round.n}`, 'Gleich kommt die Frage.');
     const has = engine.has(state.round.audio);
@@ -307,6 +327,8 @@ function render() {
     document.body.dataset.modus = base;
   }
   if (!state) { $('tafel').hidden = true; $('runde').textContent = ''; return; }
+  const inline = $('lobbyregeln');
+  if (inline) inline.replaceChildren(...rulesContent(state.mode, state.settings));
   const saved = $('gespeichert');
   if (saved) saved.textContent = state.myAnswer ? `Gespeichert: ${state.myAnswer}. Du kannst noch ändern.` : '';
   for (const b of document.querySelectorAll('[data-option]')) {
