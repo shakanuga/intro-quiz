@@ -363,3 +363,4 @@ select, textarea {
 .regeln-kasten { width: min(640px, 100%); background: var(--schwarz); padding: 10px 14px; margin-top: 16px; text-align: left; }
 .regeln-kasten summary { cursor: pointer; color: var(--gelb); font-size: 22px; }
 .spieler .tipp { margin-top: 8px; }
+.mini button.hoert { background: var(--gelb); color: var(--schwarz); }

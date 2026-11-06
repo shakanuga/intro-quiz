@@ -342,6 +342,7 @@ function ablauf(s) {
     entries.length > 1 ? h('button', { class: 'knopf klein', onclick: () => cmd('shuffle') }, 'Reihenfolge mischen') : null,
     h('ol', { class: 'intros' }, entries.map((r, i) => h('li', { class: r.id === s.currentId ? 'aktuell' : '' },
       h('span', { class: 'nr' }, `${i + 1}.`),
+      r.kind === 'question' ? null : h('span', { class: 'mini' }, previewButton(r)),
       h('input', {
         value: r.title, 'aria-label': `Lösung für Intro ${i + 1}`, maxlength: 80,
         onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
@@ -359,6 +360,39 @@ function ablauf(s) {
         }, '×'))))),
   ];
 }
+
+// ---------- Reinhören ----------
+// Spielt ein Intro nur beim Host ab, die Spieler hören davon nichts.
+let preview = null;
+function syncPreviewButtons() {
+  for (const b of document.querySelectorAll('[data-preview]')) {
+    const on = preview?.id === b.dataset.preview;
+    b.textContent = on ? '■' : '♪';
+    b.title = on ? 'Reinhören stoppen' : 'Reinhören (nur bei dir)';
+    b.classList.toggle('hoert', on);
+  }
+}
+function stopPreview() {
+  preview?.audio.pause();
+  preview = null;
+  syncPreviewButtons();
+}
+function togglePreview(id) {
+  const same = preview?.id === id;
+  stopPreview();
+  if (same) return;
+  const audio = new Audio(`/audio/${id}`);
+  audio.addEventListener('ended', () => { if (preview?.audio === audio) stopPreview(); });
+  audio.addEventListener('error', () => { if (preview?.audio === audio) stopPreview(); });
+  preview = { id, audio };
+  audio.play().catch(() => { if (preview?.audio === audio) stopPreview(); });
+  syncPreviewButtons();
+}
+const previewButton = (r) => (r.kind === 'question' ? null : h('button', {
+  'data-preview': r.id, 'aria-label': `In ${r.title} reinhören`,
+  class: preview?.id === r.id ? 'hoert' : '', title: preview?.id === r.id ? 'Reinhören stoppen' : 'Reinhören (nur bei dir)',
+  onclick: () => togglePreview(r.id),
+}, preview?.id === r.id ? '■' : '♪'));
 
 // ---------- Intros und Quizze ----------
 function questionQuizzes(s) {
@@ -411,6 +445,7 @@ function quizDetail(s) {
     }, 'Eintrag hinzufügen'),
     h('ol', { class: 'intros sammlung' }, entries.map((r, i) => h('li', {},
       h('span', { class: 'nr' }, `${i + 1}.`),
+      r.kind === 'question' ? null : h('span', { class: 'mini' }, previewButton(r)),
       h('input', {
         value: r.title, 'aria-label': `Text von Eintrag ${i + 1}`, maxlength: 500,
         onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
@@ -564,7 +599,7 @@ function sammlungRows(s, listNode, noteNode) {
         'aria-pressed': dabei ? 'true' : 'false',
         disabled: r.id === s.currentId,
         onclick: () => cmd(dabei ? 'exclude' : 'include', { id: r.id }),
-      }, dabei ? '✓' : '+')),
+      }, dabei ? '✓' : '+'), previewButton(r)),
       h('input', {
         value: r.title, 'aria-label': `Titel von ${r.title}`, maxlength: r.kind === 'question' ? 500 : 80,
         onchange: (e) => { cmd('rename', { id: r.id, title: e.target.value }); e.target.blur(); },
@@ -658,6 +693,7 @@ function replaceUnlessEditing(node, kids) {
 
 function render() {
   if (!state || !cols) return;
+  if (preview && state.playing) stopPreview(); // Im laufenden Intro nicht doppelt abspielen.
   rulesDialog.update(state.mode, state.settings);
   $('runde').textContent = state.round.n ? `Runde ${state.round.n}/${state.round.total}` : '';
   if (tab === 'spiel') {

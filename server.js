@@ -97,7 +97,7 @@ const PAGES = { '/': 'index.html', '/host': 'host.html' };
 function securityHeaders(req, res) {
   const host = String(req.headers.host || '').replace(/[^a-zA-Z0-9.:\-\[\]]/g, '');
   res.setHeader('Content-Security-Policy',
-    `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; ` +
+    `default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; media-src 'self'; ` +
     `connect-src 'self' wss://${host} ws://${host}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');

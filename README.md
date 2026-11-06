@@ -132,6 +132,8 @@ Mitspielen geht nur mit dem Spielcode, die Steuerung ist durch das Host-Passwort
 
 ## Intros
 
+Mit ♪ neben einem Intro hörst du als Host rein, zum Beispiel um zu prüfen, ob gleich am Anfang der Serienname fällt. Die Spieler hören davon nichts.
+
 Der Dateiname wird zur Lösung, aus `Die Simpsons.mp3` wird also „Die Simpsons“. Erlaubt sind MP3, M4A, OGG, OPUS, WAV und FLAC mit bis zu 40 MB. MP3 mit 128 kbit/s reicht aus. Dieses Repo enthält keine Intros. Achte bei eigenen Dateien auf die Rechte, besonders wenn deine Instanz öffentlich erreichbar ist.
 
 ## Entwickeln
