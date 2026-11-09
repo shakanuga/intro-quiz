@@ -33,13 +33,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Node-Version aus dem Dockerfile lesen
         id: node
         run: echo "version=$(grep -oP '^FROM node:\K[0-9]+' Dockerfile | head -1)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ steps.node.outputs.version }}
 
