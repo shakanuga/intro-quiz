@@ -2,6 +2,9 @@
 
 Ein Quiz mit Buzzer im Browser und mehreren Spielmodi, gemacht für Runden über Discord oder andere Sprachchats. Niemand muss etwas installieren oder einen Bildschirm teilen: Der Ton läuft direkt im Browser jedes Spielers und startet überall gleichzeitig.
 
+![Host-Ansicht mit laufender Frage](docs/screenshots/host-frage.png)
+
+
 ## So läuft ein Spiel
 
 1. Der Host öffnet `/host`, lädt Intros hoch und gibt den Spielcode weiter.
@@ -13,6 +16,20 @@ Ein Quiz mit Buzzer im Browser und mehreren Spielmodi, gemacht für Runden über
 Beim Beitreten sehen die Spieler die Regeln des aktuellen Spielmodus. Sie passen sich an die Einstellungen an, etwa Punkte, Antwortzeit oder erneutes Buzzern. Wer mitten im Spiel dazukommt, bekommt sie einmal als Fenster. Host und Spieler öffnen sie jederzeit über „Regeln“ oben rechts.
 
 Die Spieler buzzern per Knopf oder Leertaste. Der Host steuert auch per Tastatur: Leertaste für Abspielen und Pause, `R` für richtig, `F` für falsch und `N` für die nächste Runde.
+
+## Screenshots
+
+**Spieler auf dem Handy:** Beitreten, Auswahl-Frage, Auflösung
+
+![Spieler: Lobby, Auswahl, Auflösung](docs/screenshots/spieler-1.png)
+
+**Schätzen, Sortieren und Buzzer:** links die Auflösung beim Schätzen, rechts derselbe Buzzer-Moment bei der Person, die dran ist, und bei allen anderen
+
+![Spieler: Schätzen, Sortieren, Buzzer](docs/screenshots/spieler-2.png)
+
+<table>
+<tr><td width="50%"><img src="docs/screenshots/host-buzzer.png" alt="Host: Jemand hat gebuzzert, Richtig oder Falsch"><br><sub>Host: Jemand hat gebuzzert, Richtig oder Falsch</sub></td><td width="50%"><img src="docs/screenshots/host-inhalte.png" alt="Host: Inhalte und importierte Quizze"><br><sub>Host: Inhalte und importierte Quizze</sub></td></tr>
+</table>
 
 ## Fragetypen
 
